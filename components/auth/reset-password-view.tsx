@@ -3,7 +3,11 @@
 import { useState, useTransition, FormEvent, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { CheckCircle2, Lock, Eye, EyeOff, Loader2, AlertCircle } from "lucide-react";
+import { CheckCircle2, Eye, EyeOff, Lock } from "lucide-react";
+import { Alert } from "@/components/ui/alert";
+import { Button, buttonClasses } from "@/components/ui/button";
+import { Field, Input, Label } from "@/components/ui/input";
+import { Skeleton } from "@/components/ui/skeleton";
 
 function ResetPasswordForm() {
   const router = useRouter();
@@ -100,130 +104,113 @@ function ResetPasswordForm() {
 
   if (success) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-background p-4">
-        <div className="w-full max-w-md">
-          <div className="bg-card rounded-2xl shadow-xl border border-border p-8 text-center animate-in fade-in zoom-in-95 duration-300">
-            <div className="w-16 h-16 bg-emerald-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
-              <CheckCircle2 className="w-8 h-8 text-emerald-600 dark:text-emerald-400" />
-            </div>
-            <h2 className="text-2xl font-bold text-foreground mb-2">Password Aggiornata!</h2>
-            <p className="text-muted-foreground mb-6">
-              La tua password è stata reimpostata con successo. Verrai reindirizzato alla pagina di login...
-            </p>
-            <Link
-              href="/"
-              className="inline-flex items-center justify-center rounded-xl bg-primary px-6 py-3 text-sm font-semibold text-primary-foreground shadow-lg transition-all hover:bg-primary/90"
-            >
-              Vai al Login
-            </Link>
-          </div>
+      <div className="flex min-h-screen items-center justify-center bg-background px-5 py-12">
+        <div className="w-full max-w-[22rem] text-center">
+          <span className="mx-auto flex size-12 items-center justify-center rounded-full bg-success-subtle text-success">
+            <CheckCircle2 className="size-5" />
+          </span>
+          <h1 className="mt-4 text-xl font-semibold tracking-tight text-foreground">
+            Password aggiornata
+          </h1>
+          <p className="mt-1.5 text-sm text-muted-foreground">
+            La tua password è stata reimpostata. Ti stiamo riportando al login…
+          </p>
+          <Link
+            href="/"
+            className={buttonClasses({ size: "lg", className: "mt-6 w-full" })}
+          >
+            Vai al login
+          </Link>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background p-4">
-      <div className="w-full max-w-md">
-        <div className="bg-card rounded-2xl shadow-xl border border-border p-8 animate-in fade-in slide-in-from-bottom-4 duration-300">
-          <div className="text-center mb-8">
-            <div className="w-16 h-16 bg-primary/10 rounded-2xl flex items-center justify-center mx-auto mb-4 border border-primary/20">
-              <Lock className="w-8 h-8 text-primary" />
-            </div>
-            <h1 className="text-2xl font-bold text-foreground mb-2">Reimposta Password</h1>
-            <p className="text-sm text-muted-foreground">
-              Inserisci la tua nuova password
-            </p>
-          </div>
+    <div className="flex min-h-screen items-center justify-center bg-background px-5 py-12">
+      <div className="w-full max-w-[22rem]">
+        <div className="mb-7">
+          <span className="flex size-10 items-center justify-center rounded-md border border-border bg-card text-muted-foreground">
+            <Lock className="size-4" />
+          </span>
+          <h1 className="mt-4 text-2xl font-semibold tracking-tight text-foreground">
+            Reimposta password
+          </h1>
+          <p className="mt-1.5 text-sm text-muted-foreground">
+            Scegli una nuova password di almeno 8 caratteri.
+          </p>
+        </div>
 
-          {error && (
-            <div className="rounded-xl bg-destructive/10 p-4 border border-destructive/20 shadow-sm mb-6 animate-in fade-in slide-in-from-top-2">
-              <div className="flex items-start gap-3">
-                <div className="flex-shrink-0 w-8 h-8 rounded-lg bg-destructive/20 flex items-center justify-center">
-                  <AlertCircle className="w-4 h-4 text-destructive" />
-                </div>
-                <p className="text-sm text-destructive font-medium pt-1">
-                  {error}
-                </p>
-              </div>
-            </div>
-          )}
+        {error && <Alert variant="error" className="mb-4">{error}</Alert>}
 
-          <form onSubmit={handleSubmit} className="space-y-5">
-            <div>
-              <label htmlFor="newPassword" className="block text-sm font-semibold text-foreground mb-2">
-                Nuova Password
-              </label>
-              <div className="relative">
-                <input
-                  id="newPassword"
-                  type={showPassword ? "text" : "password"}
-                  required
-                  minLength={8}
-                  value={formState.newPassword}
-                  onChange={(event) =>
-                    setFormState((state) => ({ ...state, newPassword: event.target.value }))
-                  }
-                  className="block w-full rounded-xl border border-input bg-background px-4 py-3 pr-11 text-sm text-foreground placeholder:text-muted-foreground outline-none transition-all focus:border-primary focus:ring-2 focus:ring-primary/20"
-                  placeholder="Almeno 8 caratteri"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute inset-y-0 right-0 flex items-center pr-3 text-muted-foreground hover:text-foreground transition-colors"
-                >
-                  {showPassword ? (
-                    <EyeOff className="h-5 w-5" />
-                  ) : (
-                    <Eye className="h-5 w-5" />
-                  )}
-                </button>
-              </div>
-            </div>
-
-            <div>
-              <label htmlFor="confirmPassword" className="block text-sm font-semibold text-foreground mb-2">
-                Conferma Password
-              </label>
-              <input
-                id="confirmPassword"
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div className="space-y-1.5">
+            <Label htmlFor="newPassword">Nuova password</Label>
+            <div className="relative">
+              <Input
+                id="newPassword"
                 type={showPassword ? "text" : "password"}
                 required
                 minLength={8}
+                autoComplete="new-password"
+                className="pr-9"
+                value={formState.newPassword}
+                onChange={(event) =>
+                  setFormState((state) => ({
+                    ...state,
+                    newPassword: event.target.value,
+                  }))
+                }
+                placeholder="Almeno 8 caratteri"
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                aria-label={showPassword ? "Nascondi password" : "Mostra password"}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 cursor-pointer rounded-sm p-0.5 text-muted-foreground transition-colors hover:text-foreground"
+              >
+                {showPassword ? (
+                  <EyeOff className="size-4" />
+                ) : (
+                  <Eye className="size-4" />
+                )}
+              </button>
+            </div>
+          </div>
+
+          <Field label="Conferma password" htmlFor="confirmPassword">
+            {(field) => (
+              <Input
+                {...field}
+                type={showPassword ? "text" : "password"}
+                required
+                minLength={8}
+                autoComplete="new-password"
                 value={formState.confirmPassword}
                 onChange={(event) =>
-                  setFormState((state) => ({ ...state, confirmPassword: event.target.value }))
+                  setFormState((state) => ({
+                    ...state,
+                    confirmPassword: event.target.value,
+                  }))
                 }
-                className="block w-full rounded-xl border border-input bg-background px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground outline-none transition-all focus:border-primary focus:ring-2 focus:ring-primary/20"
                 placeholder="Ripeti la password"
               />
-            </div>
+            )}
+          </Field>
 
-            <button
-              type="submit"
-              disabled={isPending}
-              className="w-full flex items-center justify-center gap-2 rounded-xl bg-primary px-4 py-3.5 text-sm font-semibold text-primary-foreground shadow-lg transition-all hover:bg-primary/90 hover:scale-[1.02] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:scale-100"
+          <Button type="submit" size="lg" className="w-full" loading={isPending}>
+            {isPending ? "Reimpostazione…" : "Reimposta password"}
+          </Button>
+
+          <p className="pt-1 text-center">
+            <Link
+              href="/"
+              className="text-[13px] text-muted-foreground transition-colors hover:text-foreground"
             >
-              {isPending ? (
-                <>
-                  <Loader2 className="animate-spin h-4 w-4" />
-                  Reimpostazione in corso...
-                </>
-              ) : (
-                "Reimposta Password"
-              )}
-            </button>
-
-            <div className="text-center pt-2">
-              <Link
-                href="/"
-                className="text-sm font-medium text-primary hover:underline transition-colors"
-              >
-                Torna al Login
-              </Link>
-            </div>
-          </form>
-        </div>
+              Torna al login
+            </Link>
+          </p>
+        </form>
       </div>
     </div>
   );
@@ -231,14 +218,19 @@ function ResetPasswordForm() {
 
 export default function ResetPasswordView() {
   return (
-    <Suspense fallback={
-      <div className="min-h-screen flex items-center justify-center bg-background">
-        <div className="text-center">
-          <Loader2 className="animate-spin h-8 w-8 text-primary mx-auto" />
-          <p className="mt-4 text-muted-foreground">Caricamento...</p>
+    <Suspense
+      fallback={
+        <div className="flex min-h-screen items-center justify-center bg-background px-5">
+          <div className="w-full max-w-[22rem] space-y-3">
+            <Skeleton className="h-10 w-10 rounded-md" />
+            <Skeleton className="h-7 w-56" />
+            <Skeleton className="h-4 w-full" />
+            <Skeleton className="h-9 w-full" />
+            <Skeleton className="h-9 w-full" />
+          </div>
         </div>
-      </div>
-    }>
+      }
+    >
       <ResetPasswordForm />
     </Suspense>
   );

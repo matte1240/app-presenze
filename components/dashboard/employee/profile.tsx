@@ -2,14 +2,18 @@
 
 import { useState, useTransition } from "react";
 import { format } from "date-fns";
+import { it } from "date-fns/locale";
 import type { User } from "@/types/models";
 import { 
   Shield,
   User as UserIcon
 } from "lucide-react";
-import { cn } from "@/lib/utils";
 import { Card } from "@/components/ui/card";
 import { Alert } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Field, Input } from "@/components/ui/input";
+import { PageContainer, PageHeader } from "@/components/layout/page";
 
 type EmployeeProfileProps = {
   user: User;
@@ -65,158 +69,135 @@ export default function EmployeeProfile({ user }: EmployeeProfileProps) {
   };
 
   return (
-    <div className="mx-auto max-w-4xl px-4 sm:px-6 lg:px-8 py-8">
-      {/* Profile Header */}
-      <div className="bg-card rounded-xl shadow-sm border border-border overflow-hidden mb-6">
-        <div className="bg-gradient-to-r from-primary/80 to-primary h-32"></div>
-        <div className="px-6 pb-6">
-          <div className="flex items-end -mt-16 mb-4">
-            <div className="relative flex h-32 w-32 items-center justify-center rounded-full bg-background shadow-lg border-4 border-background overflow-hidden">
-              <div className="flex h-full w-full items-center justify-center bg-muted">
-                <span className="text-5xl font-bold text-muted-foreground">
-                  {(user.name || user.email).charAt(0).toUpperCase()}
-                </span>
-              </div>
-            </div>
-          </div>
-          <div>
-            <h1 className="text-2xl font-bold text-foreground">{user.name || "N/A"}</h1>
-            <p className="text-muted-foreground">{user.email}</p>
-            <div className="mt-2">
-              <span className={cn(
-                "inline-flex items-center px-3 py-1 rounded-full text-sm font-semibold",
-                user.role === "ADMIN"
-                  ? "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300"
-                  : "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300"
-              )}>
-                {user.role === "ADMIN" ? "Amministratore" : "Dipendente"}
-              </span>
-            </div>
-          </div>
+    <PageContainer className="max-w-3xl">
+      <PageHeader title="Profilo" description="I tuoi dati e la tua password." />
+
+      {/* Identity strip. The old header used a 8rem gradient band with a 8rem
+          avatar hanging off it — a lot of chrome for four fields. */}
+      <div className="mb-4 flex items-center gap-4 rounded-lg border border-border bg-card p-4 shadow-elevation-1">
+        <span className="flex size-14 shrink-0 items-center justify-center rounded-full bg-muted text-xl font-semibold text-muted-foreground">
+          {(user.name || user.email).charAt(0).toUpperCase()}
+        </span>
+        <div className="min-w-0">
+          <h2 className="truncate text-base font-semibold tracking-tight text-foreground">
+            {user.name || "Senza nome"}
+          </h2>
+          <p className="truncate text-[13px] text-muted-foreground">{user.email}</p>
+          <Badge
+            variant={user.role === "ADMIN" ? "primary" : "neutral"}
+            className="mt-1.5"
+          >
+            {user.role === "ADMIN" ? "Amministratore" : "Dipendente"}
+          </Badge>
         </div>
       </div>
 
-      {/* Success/Error Messages */}
-      {success && (
-        <Alert variant="success" className="mb-6">{success}</Alert>
-      )}
+      {success && <Alert variant="success" className="mb-4">{success}</Alert>}
+      {error && <Alert variant="error" className="mb-4">{error}</Alert>}
 
-      {error && (
-        <Alert variant="error" className="mb-6">{error}</Alert>
-      )}
-
-      {/* Profile Information */}
-      <Card className="mb-6">
-        <h2 className="text-lg font-semibold text-foreground mb-4 flex items-center gap-2">
-          <UserIcon className="w-5 h-5 text-muted-foreground" />
-          Informazioni Profilo
-        </h2>
-        <dl className="grid grid-cols-1 gap-6 sm:grid-cols-2">
-          <div>
-            <dt className="text-sm font-medium text-muted-foreground">Nome completo</dt>
-            <dd className="mt-1 text-sm text-foreground">{user.name || "N/A"}</dd>
-          </div>
-          <div>
-            <dt className="text-sm font-medium text-muted-foreground">Email</dt>
-            <dd className="mt-1 text-sm text-foreground">{user.email}</dd>
-          </div>
-          <div>
-            <dt className="text-sm font-medium text-muted-foreground">Ruolo</dt>
-            <dd className="mt-1 text-sm text-foreground">{user.role === "ADMIN" ? "Amministratore" : "Dipendente"}</dd>
-          </div>
-          <div>
-            <dt className="text-sm font-medium text-muted-foreground">Data registrazione</dt>
-            <dd className="mt-1 text-sm text-foreground">
-              {format(new Date(user.createdAt), "dd MMMM yyyy")}
-            </dd>
-          </div>
+      <Card className="mb-4">
+        <h3 className="mb-3 flex items-center gap-2 text-sm font-semibold text-foreground">
+          <UserIcon className="size-4 text-muted-foreground" />
+          Informazioni profilo
+        </h3>
+        <dl className="grid grid-cols-1 gap-x-6 gap-y-3 sm:grid-cols-2">
+          <InfoRow label="Nome completo" value={user.name || "—"} />
+          <InfoRow label="Email" value={user.email} />
+          <InfoRow
+            label="Ruolo"
+            value={user.role === "ADMIN" ? "Amministratore" : "Dipendente"}
+          />
+          <InfoRow
+            label="Data registrazione"
+            value={format(new Date(user.createdAt), "d MMMM yyyy", { locale: it })}
+          />
         </dl>
       </Card>
 
-      {/* Security Section */}
       <Card>
-        <div className="flex items-center justify-between mb-4">
+        <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
-            <h2 className="text-lg font-semibold text-foreground flex items-center gap-2">
-              <Shield className="w-5 h-5 text-muted-foreground" />
+            <h3 className="flex items-center gap-2 text-sm font-semibold text-foreground">
+              <Shield className="size-4 text-muted-foreground" />
               Sicurezza
-            </h2>
-            <p className="text-sm text-muted-foreground mt-1">Gestisci la tua password</p>
+            </h3>
+            <p className="mt-1 text-[13px] text-muted-foreground">
+              {isEditingPassword
+                ? "Scegli una password di almeno 8 caratteri."
+                : "La password è configurata."}
+            </p>
           </div>
           {!isEditingPassword && (
-            <button
-              onClick={() => setIsEditingPassword(true)}
-              className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-lg text-primary-foreground bg-primary hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary transition-colors cursor-pointer"
-            >
-              Cambia Password
-            </button>
+            <Button variant="outline" onClick={() => setIsEditingPassword(true)}>
+              Cambia password
+            </Button>
           )}
         </div>
 
         {isEditingPassword && (
-          <form onSubmit={handlePasswordChange} className="border-t border-border pt-4 space-y-4">
-            <div>
-              <label htmlFor="newPassword" className="block text-sm font-medium text-foreground">
-                Nuova Password
-              </label>
-              <input
-                type="password"
-                id="newPassword"
-                value={newPassword}
-                onChange={(e) => setNewPassword(e.target.value)}
-                required
-                className="mt-1 block w-full rounded-lg border border-input bg-background px-3 py-2 text-foreground placeholder-muted-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
-                placeholder="Minimo 8 caratteri"
-              />
-            </div>
+          <form
+            onSubmit={handlePasswordChange}
+            className="mt-4 space-y-3 border-t border-border pt-4"
+          >
+            <Field label="Nuova password" htmlFor="newPassword">
+              {(field) => (
+                <Input
+                  {...field}
+                  type="password"
+                  required
+                  minLength={8}
+                  autoComplete="new-password"
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  placeholder="Minimo 8 caratteri"
+                />
+              )}
+            </Field>
 
-            <div>
-              <label htmlFor="confirmPassword" className="block text-sm font-medium text-foreground">
-                Conferma Password
-              </label>
-              <input
-                type="password"
-                id="confirmPassword"
-                value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
-                required
-                className="mt-1 block w-full rounded-lg border border-input bg-background px-3 py-2 text-foreground placeholder-muted-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
-                placeholder="Ripeti la password"
-              />
-            </div>
+            <Field label="Conferma password" htmlFor="confirmPassword">
+              {(field) => (
+                <Input
+                  {...field}
+                  type="password"
+                  required
+                  minLength={8}
+                  autoComplete="new-password"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  placeholder="Ripeti la password"
+                />
+              )}
+            </Field>
 
-            <div className="flex gap-3">
-              <button
-                type="submit"
-                disabled={isUpdating}
-                className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-lg text-primary-foreground bg-primary hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary disabled:opacity-50 disabled:cursor-not-allowed transition-colors cursor-pointer"
-              >
-                {isUpdating ? "Salvataggio..." : "Salva Password"}
-              </button>
-              <button
+            <div className="flex gap-2 pt-1">
+              <Button type="submit" loading={isUpdating}>
+                {isUpdating ? "Salvataggio…" : "Salva password"}
+              </Button>
+              <Button
                 type="button"
+                variant="ghost"
                 onClick={() => {
                   setIsEditingPassword(false);
                   setNewPassword("");
                   setConfirmPassword("");
                   setError(null);
                 }}
-                className="inline-flex items-center px-4 py-2 border border-input text-sm font-medium rounded-lg text-foreground bg-background hover:bg-muted focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary transition-colors cursor-pointer"
               >
                 Annulla
-              </button>
+              </Button>
             </div>
           </form>
         )}
-
-        {!isEditingPassword && (
-          <div className="border-t border-border pt-4">
-            <p className="text-sm text-muted-foreground">
-              Password configurata. Usa il pulsante sopra per cambiarla.
-            </p>
-          </div>
-        )}
       </Card>
+    </PageContainer>
+  );
+}
+
+function InfoRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div>
+      <dt className="text-xs text-muted-foreground">{label}</dt>
+      <dd className="mt-0.5 text-[13px] text-foreground">{value}</dd>
     </div>
   );
 }

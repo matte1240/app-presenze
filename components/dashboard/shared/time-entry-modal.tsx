@@ -1,17 +1,20 @@
 "use client";
 
 import { format } from "date-fns";
-import {
-  XCircle,
-  AlertCircle,
-  Sun,
-  Stethoscope,
-  Briefcase,
-  Loader2,
-} from "lucide-react";
+import { it } from "date-fns/locale";
+import { Moon, Stethoscope, Sun, Baby } from "lucide-react";
 import { TIME_OPTIONS } from "@/lib/utils/time-utils";
 import type { ModalFormState } from "@/hooks/use-timesheet-data";
 import type { LeaveRequestDTO } from "@/types/models";
+import { Alert } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
+import { Dialog } from "@/components/ui/dialog";
+import { Field, Input, Label, Select, Textarea } from "@/components/ui/input";
+import { cn } from "@/lib/utils";
+
+const FORM_ID = "time-entry-form";
+
+type DayType = ModalFormState["dayType"];
 
 type TimeEntryModalProps = {
   isOpen: boolean;
@@ -55,291 +58,354 @@ export default function TimeEntryModal({
   onDelete,
   userFeatures = { hasPermesso104: false, hasPaternityLeave: false },
 }: TimeEntryModalProps) {
-  if (!isOpen) return null;
+  const dayTypes: Array<{ value: DayType; label: string }> = [
+    { value: "normal", label: "Normale" },
+    { value: "ferie", label: "Ferie" },
+    { value: "malattia", label: "Malattia" },
+    ...(userFeatures?.hasPaternityLeave
+      ? [{ value: "paternity" as DayType, label: "Paternità" }]
+      : []),
+  ];
+
+  const saveLabel =
+    modalForm.dayType === "ferie"
+      ? "Salva ferie"
+      : modalForm.dayType === "malattia"
+        ? "Salva malattia"
+        : modalForm.dayType === "paternity"
+          ? "Salva paternità"
+          : "Salva";
+
+  const nothingToSave =
+    modalForm.dayType === "normal" &&
+    calculatedHours.totalWorked === 0 &&
+    calculatedHours.permesso === 0 &&
+    calculatedHours.permesso104 === 0;
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm p-4 overflow-y-auto"
-      onClick={onClose}
-    >
-      <div
-        className="w-full max-w-lg my-8 rounded-xl border border-border bg-card shadow-2xl flex flex-col max-h-[90vh] overflow-hidden animate-in fade-in zoom-in duration-200"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <form onSubmit={onSubmit} className="flex flex-col min-h-0 flex-1">
-          {/* Header */}
-          <div className="flex items-center justify-between bg-primary px-6 py-4 flex-shrink-0">
-            <h2 className="text-lg font-semibold text-primary-foreground">
-              {selectedDate &&
-                format(new Date(`${selectedDate}T12:00:00`), "EEEE, MMM d, yyyy")}
-            </h2>
-            <button
-              type="button"
-              onClick={onClose}
-              className="rounded-lg p-1 text-primary-foreground/80 transition hover:bg-primary-foreground/20 hover:text-primary-foreground"
+    <Dialog
+      open={isOpen}
+      onClose={onClose}
+      size="md"
+      title={
+        selectedDate
+          ? format(new Date(`${selectedDate}T12:00:00`), "EEEE d MMMM yyyy", {
+              locale: it,
+            })
+          : "Registra ore"
+      }
+      footer={
+        <>
+          {hasExistingEntry && (
+            <Button
+              variant="ghost"
+              onClick={onDelete}
+              disabled={isSaving}
+              className="mr-auto hover:bg-destructive-subtle hover:text-destructive"
             >
-              <XCircle className="h-5 w-5" />
-            </button>
-          </div>
-
-          {/* Error banner */}
-          {modalError && (
-            <div className="mx-6 mt-4 rounded-lg border border-destructive/50 bg-destructive/10 p-3 flex-shrink-0">
-              <div className="flex items-center gap-2">
-                <AlertCircle className="h-5 w-5 text-destructive flex-shrink-0" />
-                <p className="text-sm font-medium text-destructive">{modalError}</p>
-              </div>
-            </div>
+              Elimina
+            </Button>
           )}
+          <Button variant="ghost" onClick={onClose} disabled={isSaving}>
+            Annulla
+          </Button>
+          <Button
+            type="submit"
+            form={FORM_ID}
+            loading={isSaving}
+            disabled={nothingToSave}
+          >
+            {isSaving ? "Salvataggio…" : saveLabel}
+          </Button>
+        </>
+      }
+    >
+      {/* The submit button lives in the dialog footer, outside this element, so
+          it is tied back to the form by id rather than by nesting. */}
+      <form id={FORM_ID} onSubmit={onSubmit} className="space-y-4">
+        {modalError && <Alert variant="error">{modalError}</Alert>}
 
-          {/* Body */}
-          <div className="space-y-5 p-6 pb-5 overflow-y-auto flex-1">
-            {/* Day type selector */}
-            <label className="flex flex-col gap-2">
-              <span className="text-sm font-semibold text-foreground">Tipo di giornata</span>
-              <select
-                value={modalForm.dayType}
-                onChange={(e) =>
-                  setModalForm((f) => ({ ...f, dayType: e.target.value as ModalFormState["dayType"] }))
-                }
-                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-              >
-                <option value="normal">Normale</option>
-                <option value="ferie">Ferie</option>
-                <option value="malattia">Malattia</option>
-                {userFeatures?.hasPaternityLeave && (
-                  <option value="paternity">Congedo Paternità</option>
+        {/* Day type: a segmented control rather than a dropdown. Four options
+            that switch the whole form deserve to be visible at once. */}
+        <div className="space-y-1.5">
+          <Label>Tipo di giornata</Label>
+          <div className="flex rounded-md border border-border p-0.5">
+            {dayTypes.map(({ value, label }) => (
+              <button
+                key={value}
+                type="button"
+                onClick={() => setModalForm((f) => ({ ...f, dayType: value }))}
+                aria-pressed={modalForm.dayType === value}
+                className={cn(
+                  "flex-1 cursor-pointer rounded-sm px-2 py-1.5 text-[13px] font-medium transition-colors",
+                  modalForm.dayType === value
+                    ? "bg-primary text-primary-foreground"
+                    : "text-muted-foreground hover:bg-accent hover:text-foreground"
                 )}
-              </select>
-            </label>
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        </div>
 
-            {/* Medical certificate */}
-            {modalForm.dayType === "malattia" && (
-              <label className="flex flex-col gap-2">
-                <span className="text-sm font-semibold text-foreground">Numero certificato medico</span>
-                <input
+        {modalForm.dayType === "malattia" && (
+          <>
+            <Field label="Numero certificato medico">
+              {(field) => (
+                <Input
+                  {...field}
                   type="text"
                   value={modalForm.medicalCertificate}
-                  onChange={(e) => setModalForm((f) => ({ ...f, medicalCertificate: e.target.value }))}
-                  placeholder="Inserisci il numero del certificato..."
-                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                  onChange={(e) =>
+                    setModalForm((f) => ({
+                      ...f,
+                      medicalCertificate: e.target.value,
+                    }))
+                  }
+                  placeholder="Es. 1234567890"
                 />
-              </label>
-            )}
+              )}
+            </Field>
+            <SummaryPanel
+              icon={<Stethoscope />}
+              label="Malattia"
+              value={`${calculatedHours.sickness} ore`}
+            />
+          </>
+        )}
 
-            {/* Normal day: shifts */}
-            {modalForm.dayType === "normal" && (
-              <>
-                {activePerm && activePerm.startTime && activePerm.endTime && (
-                  <div className="mb-4 rounded-lg border border-yellow-200 bg-yellow-50 p-3 dark:bg-yellow-900/10 dark:border-yellow-900/20">
-                    <div className="flex items-start gap-2">
-                      <AlertCircle className="h-4 w-4 text-yellow-600 dark:text-yellow-400 mt-0.5" />
-                      <div className="text-xs text-yellow-800 dark:text-yellow-200">
-                        <p className="font-semibold">Permesso Approvato ({activePerm.startTime} - {activePerm.endTime})</p>
-                        <p>Le ore di permesso verranno conteggiate automaticamente per coprire le ore mancanti al raggiungimento delle ore lavorative ordinarie.</p>
-                      </div>
-                    </div>
-                  </div>
-                )}
+        {modalForm.dayType === "ferie" && (
+          <SummaryPanel
+            icon={<Sun />}
+            label="Ferie"
+            value={`${calculatedHours.vacation} ore`}
+            note="Giornata di ferie completa."
+          />
+        )}
 
-                {/* Morning shift */}
-                <ShiftSection
-                  label="Turno Mattina"
-                  color="blue"
-                  icon={<Sun className="h-5 w-5 text-blue-600 dark:text-blue-400" />}
-                  isPermesso={modalForm.isMorningPermesso}
-                  onPermessoChange={(checked) => setModalForm((f) => ({ ...f, isMorningPermesso: checked }))}
-                  startValue={modalForm.morningStart}
-                  endValue={modalForm.morningEnd}
-                  onStartChange={(v) => setModalForm((f) => ({ ...f, morningStart: v }))}
-                  onEndChange={(v) => setModalForm((f) => ({ ...f, morningEnd: v }))}
-                  duration={calculatedHours.morning}
-                  timePrefix="morning"
-                />
+        {modalForm.dayType === "paternity" && (
+          <SummaryPanel
+            icon={<Baby />}
+            label="Congedo di paternità"
+            value="Giornata intera"
+          />
+        )}
 
-                {/* Afternoon shift */}
-                <ShiftSection
-                  label="Turno Pomeriggio"
-                  color="orange"
-                  icon={<Sun className="h-5 w-5 text-orange-600 dark:text-orange-400" />}
-                  isPermesso={modalForm.isAfternoonPermesso}
-                  onPermessoChange={(checked) => setModalForm((f) => ({ ...f, isAfternoonPermesso: checked }))}
-                  startValue={modalForm.afternoonStart}
-                  endValue={modalForm.afternoonEnd}
-                  onStartChange={(v) => setModalForm((f) => ({ ...f, afternoonStart: v }))}
-                  onEndChange={(v) => setModalForm((f) => ({ ...f, afternoonEnd: v }))}
-                  duration={calculatedHours.afternoon}
-                  timePrefix="afternoon"
-                />
-
-                {/* Permesso 104 */}
-                {userFeatures?.hasPermesso104 && (
-                  <div className="rounded-xl bg-purple-50/50 dark:bg-purple-900/10 border border-purple-100 dark:border-purple-900/20 p-4 shadow-sm">
-                    <label className="flex items-center gap-3 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={modalForm.isPermesso104}
-                        onChange={(e) =>
-                          setModalForm((f) => ({ ...f, isPermesso104: e.target.checked, permesso104Override: null }))
-                        }
-                        className="h-5 w-5 rounded border-purple-300 text-purple-600 focus:ring-purple-500"
-                      />
-                      <div>
-                        <span className="text-sm font-semibold text-purple-900 dark:text-purple-100">Usa Permesso 104</span>
-                        <p className="text-xs text-purple-700 dark:text-purple-300 mt-0.5">
-                          Le ore mancanti saranno conteggiate come permesso 104 invece che permesso normale.
-                        </p>
-                      </div>
-                    </label>
-                    {modalForm.isPermesso104 && (calculatedHours.permesso104 > 0 || calculatedHours.permesso > 0) && (
-                      <div className="mt-3 space-y-2">
-                        <div className="flex items-center justify-between gap-3">
-                          <label className="text-sm font-medium text-purple-700 dark:text-purple-300 whitespace-nowrap">
-                            Ore Permesso 104:
-                          </label>
-                          <input
-                            type="number"
-                            min={0}
-                            max={calculatedHours.permesso104 + calculatedHours.permesso}
-                            step={0.5}
-                            value={modalForm.permesso104Override ?? (calculatedHours.permesso104 + calculatedHours.permesso)}
-                            onChange={(e) => {
-                              const val = parseFloat(e.target.value);
-                              const maxH = calculatedHours.permesso104 + calculatedHours.permesso;
-                              setModalForm((f) => ({
-                                ...f,
-                                permesso104Override: isNaN(val) ? null : Math.min(Math.max(0, val), maxH),
-                              }));
-                            }}
-                            className="w-24 rounded-md border border-purple-300 dark:border-purple-700 bg-white dark:bg-purple-950 px-2 py-1 text-sm font-bold text-purple-900 dark:text-purple-100 text-right focus:outline-none focus:ring-2 focus:ring-purple-500"
-                          />
-                        </div>
-                        {calculatedHours.permesso > 0 && (
-                          <p className="flex items-center justify-between text-xs text-purple-600 dark:text-purple-400">
-                            <span>Permesso normale:</span>
-                            <span className="font-semibold">{calculatedHours.permesso.toFixed(2)} ore</span>
-                          </p>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                )}
-              </>
-            )}
-
-            {/* Ferie info */}
-            {modalForm.dayType === "ferie" && (
-              <div className="rounded-xl bg-emerald-50/50 dark:bg-emerald-900/10 border border-emerald-100 dark:border-emerald-900/20 p-4 shadow-sm">
-                <div className="flex items-center gap-2 mb-2">
-                  <Sun className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
-                  <h3 className="text-sm font-bold text-emerald-900 dark:text-emerald-100">Ferie</h3>
-                </div>
-                <p className="text-sm text-emerald-800 dark:text-emerald-200">Giornata di ferie completa - {calculatedHours.vacation} ore di ferie.</p>
-              </div>
-            )}
-
-            {/* Malattia info */}
-            {modalForm.dayType === "malattia" && (
-              <div className="rounded-xl bg-rose-50/50 dark:bg-rose-900/10 border border-rose-100 dark:border-rose-900/20 p-4 shadow-sm">
-                <div className="flex items-center gap-2 mb-2">
-                  <Stethoscope className="h-5 w-5 text-rose-600 dark:text-rose-400" />
-                  <h3 className="text-sm font-bold text-rose-900 dark:text-rose-100">Malattia</h3>
-                </div>
-                <p className="text-sm text-rose-800 dark:text-rose-200">Giornata di malattia - {calculatedHours.sickness} ore di malattia.</p>
-              </div>
-            )}
-
-            {/* Paternity info */}
-            {modalForm.dayType === "paternity" && (
-              <div className="rounded-xl bg-blue-50/50 dark:bg-blue-900/10 border border-blue-100 dark:border-blue-900/20 p-4 shadow-sm">
-                <div className="flex items-center gap-2 mb-2">
-                  <Briefcase className="h-5 w-5 text-blue-600 dark:text-blue-400" />
-                  <h3 className="text-sm font-bold text-blue-900 dark:text-blue-100">Congedo Paternità</h3>
-                </div>
-                <p className="text-sm text-blue-800 dark:text-blue-200">Giornata di congedo paternità completa.</p>
-              </div>
-            )}
-
-            {/* Summary */}
-            {modalForm.dayType === "normal" && (
-              <div className="rounded-xl border border-border bg-card p-4 shadow-sm">
-                <div className="space-y-2 text-sm">
-                  <div className="flex justify-between items-center">
-                    <span className="font-semibold text-foreground">Ore totali:</span>
-                    <span className="text-2xl font-bold text-primary">{calculatedHours.totalWorked.toFixed(2)}</span>
-                  </div>
-                  <div className="flex justify-between items-center border-t border-border pt-2">
-                    <span className="font-medium text-muted-foreground">Ore regolari:</span>
-                    <span className="font-bold text-foreground">{calculatedHours.regular.toFixed(2)}</span>
-                  </div>
-                  {calculatedHours.overtime > 0 && (
-                    <div className="flex justify-between items-center border-t border-orange-100 dark:border-orange-900/20 pt-2">
-                      <span className="font-medium text-orange-700 dark:text-orange-300">Straordinario:</span>
-                      <span className="font-bold text-orange-600 dark:text-orange-400">{calculatedHours.overtime.toFixed(2)}</span>
-                    </div>
-                  )}
-                  {calculatedHours.permesso > 0 && (
-                    <div className="flex justify-between items-center border-t border-yellow-100 dark:border-yellow-900/20 pt-2">
-                      <span className="font-medium text-yellow-700 dark:text-yellow-300">Permesso:</span>
-                      <span className="font-bold text-yellow-600 dark:text-yellow-400">{calculatedHours.permesso.toFixed(2)}</span>
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
-
-            {/* Notes */}
-            <label className="flex flex-col gap-2">
-              <span className="text-sm font-semibold text-foreground">Note (opzionali)</span>
-              <textarea
-                value={modalForm.notes}
-                onChange={(e) => setModalForm((f) => ({ ...f, notes: e.target.value }))}
-                placeholder="Aggiungi note sul tuo lavoro..."
-                rows={3}
-                className="flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 resize-none"
-              />
-            </label>
-          </div>
-
-          {/* Footer */}
-          <div className="flex gap-3 border-t border-border bg-muted/50 px-6 py-4 pt-6 rounded-b-xl flex-shrink-0">
-            {hasExistingEntry && (
-              <button
-                type="button"
-                onClick={onDelete}
-                disabled={isSaving}
-                className="inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 border border-destructive bg-background hover:bg-destructive hover:text-destructive-foreground h-10 px-4 py-2 text-destructive"
+        {modalForm.dayType === "normal" && (
+          <>
+            {activePerm && activePerm.startTime && activePerm.endTime && (
+              <Alert
+                variant="info"
+                title={`Permesso approvato ${activePerm.startTime}–${activePerm.endTime}`}
               >
-                {isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : "Elimina"}
-              </button>
+                Le ore di permesso coprono automaticamente quelle mancanti al
+                raggiungimento dell&apos;orario ordinario.
+              </Alert>
             )}
-            <button
-              type="button"
-              onClick={onClose}
-              className="inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 border border-input bg-background hover:bg-accent hover:text-accent-foreground h-10 px-4 py-2 flex-1"
-            >
-              Annulla
-            </button>
-            <button
-              type="submit"
-              disabled={
-                isSaving ||
-                (modalForm.dayType === "normal" &&
-                  calculatedHours.totalWorked === 0 &&
-                  calculatedHours.permesso === 0 &&
-                  calculatedHours.permesso104 === 0)
+
+            <ShiftSection
+              label="Mattina"
+              icon={<Sun />}
+              isPermesso={modalForm.isMorningPermesso}
+              onPermessoChange={(checked) =>
+                setModalForm((f) => ({ ...f, isMorningPermesso: checked }))
               }
-              className="inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 bg-primary text-primary-foreground hover:bg-primary/90 h-10 px-4 py-2 flex-1 shadow-md"
-            >
-              {isSaving ? (
-                <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Salvataggio...</>
-              ) : modalForm.dayType === "ferie" ? "Salva Ferie"
-                : modalForm.dayType === "malattia" ? "Salva Malattia"
-                : modalForm.dayType === "paternity" ? "Salva Paternità"
-                : "Salva"}
-            </button>
-          </div>
-        </form>
+              startValue={modalForm.morningStart}
+              endValue={modalForm.morningEnd}
+              onStartChange={(v) =>
+                setModalForm((f) => ({ ...f, morningStart: v }))
+              }
+              onEndChange={(v) => setModalForm((f) => ({ ...f, morningEnd: v }))}
+              duration={calculatedHours.morning}
+              timePrefix="morning"
+            />
+
+            <ShiftSection
+              label="Pomeriggio"
+              icon={<Moon />}
+              isPermesso={modalForm.isAfternoonPermesso}
+              onPermessoChange={(checked) =>
+                setModalForm((f) => ({ ...f, isAfternoonPermesso: checked }))
+              }
+              startValue={modalForm.afternoonStart}
+              endValue={modalForm.afternoonEnd}
+              onStartChange={(v) =>
+                setModalForm((f) => ({ ...f, afternoonStart: v }))
+              }
+              onEndChange={(v) =>
+                setModalForm((f) => ({ ...f, afternoonEnd: v }))
+              }
+              duration={calculatedHours.afternoon}
+              timePrefix="afternoon"
+            />
+
+            {userFeatures?.hasPermesso104 && (
+              <div className="rounded-md border border-border p-3">
+                <label className="flex cursor-pointer items-start gap-2.5">
+                  <input
+                    type="checkbox"
+                    checked={modalForm.isPermesso104}
+                    onChange={(e) =>
+                      setModalForm((f) => ({
+                        ...f,
+                        isPermesso104: e.target.checked,
+                        permesso104Override: null,
+                      }))
+                    }
+                    className="mt-0.5 size-4 shrink-0 cursor-pointer accent-[hsl(var(--primary))]"
+                  />
+                  <span>
+                    <span className="block text-[13px] font-medium text-foreground">
+                      Usa permesso 104
+                    </span>
+                    <span className="mt-0.5 block text-xs leading-relaxed text-muted-foreground">
+                      Le ore mancanti sono conteggiate come permesso 104 invece
+                      che come permesso ordinario.
+                    </span>
+                  </span>
+                </label>
+
+                {modalForm.isPermesso104 &&
+                  (calculatedHours.permesso104 > 0 ||
+                    calculatedHours.permesso > 0) && (
+                    <div className="mt-3 space-y-2 border-t border-border pt-3">
+                      <div className="flex items-center justify-between gap-3">
+                        <Label htmlFor="permesso104-hours" className="text-[13px]">
+                          Ore permesso 104
+                        </Label>
+                        <Input
+                          id="permesso104-hours"
+                          type="number"
+                          min={0}
+                          max={
+                            calculatedHours.permesso104 + calculatedHours.permesso
+                          }
+                          step={0.5}
+                          value={
+                            modalForm.permesso104Override ??
+                            calculatedHours.permesso104 + calculatedHours.permesso
+                          }
+                          onChange={(e) => {
+                            const val = parseFloat(e.target.value);
+                            const maxH =
+                              calculatedHours.permesso104 +
+                              calculatedHours.permesso;
+                            setModalForm((f) => ({
+                              ...f,
+                              permesso104Override: isNaN(val)
+                                ? null
+                                : Math.min(Math.max(0, val), maxH),
+                            }));
+                          }}
+                          className="w-24 text-right"
+                        />
+                      </div>
+                      {calculatedHours.permesso > 0 && (
+                        <p className="flex items-center justify-between text-xs text-muted-foreground">
+                          <span>Permesso ordinario</span>
+                          <span className="font-medium tabular-nums text-foreground">
+                            {calculatedHours.permesso.toFixed(2)} ore
+                          </span>
+                        </p>
+                      )}
+                    </div>
+                  )}
+              </div>
+            )}
+
+            {/* Totals: the worked figure carries the weight, and only the two
+                lines that need attention take a tone. */}
+            <div className="rounded-md border border-border bg-muted/40 p-3">
+              <div className="flex items-baseline justify-between">
+                <span className="text-[13px] font-medium text-foreground">
+                  Ore totali
+                </span>
+                <span className="text-xl font-semibold tabular-nums tracking-tight text-foreground">
+                  {calculatedHours.totalWorked.toFixed(2)}
+                </span>
+              </div>
+              <dl className="mt-2 space-y-1 border-t border-border pt-2 text-xs">
+                <TotalRow label="Ore regolari" value={calculatedHours.regular} />
+                {calculatedHours.overtime > 0 && (
+                  <TotalRow
+                    label="Straordinario"
+                    value={calculatedHours.overtime}
+                    tone="text-warning"
+                  />
+                )}
+                {calculatedHours.permesso > 0 && (
+                  <TotalRow
+                    label="Permesso"
+                    value={calculatedHours.permesso}
+                    tone="text-info"
+                  />
+                )}
+              </dl>
+            </div>
+          </>
+        )}
+
+        <Field label="Note" hint="Facoltative">
+          {(field) => (
+            <Textarea
+              {...field}
+              rows={3}
+              className="resize-none"
+              value={modalForm.notes}
+              onChange={(e) =>
+                setModalForm((f) => ({ ...f, notes: e.target.value }))
+              }
+              placeholder="Aggiungi una nota sulla giornata…"
+            />
+          )}
+        </Field>
+      </form>
+    </Dialog>
+  );
+}
+
+function TotalRow({
+  label,
+  value,
+  tone,
+}: {
+  label: string;
+  value: number;
+  tone?: string;
+}) {
+  return (
+    <div className="flex items-center justify-between">
+      <dt className={cn("text-muted-foreground", tone)}>{label}</dt>
+      <dd className={cn("font-medium tabular-nums text-foreground", tone)}>
+        {value.toFixed(2)}
+      </dd>
+    </div>
+  );
+}
+
+function SummaryPanel({
+  icon,
+  label,
+  value,
+  note,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  value: string;
+  note?: string;
+}) {
+  return (
+    <div className="flex items-center gap-3 rounded-md border border-border bg-muted/40 p-3">
+      <span className="flex size-8 shrink-0 items-center justify-center rounded-md bg-card text-muted-foreground [&_svg]:size-4">
+        {icon}
+      </span>
+      <div className="min-w-0">
+        <p className="text-[13px] font-medium text-foreground">{label}</p>
+        <p className="text-xs text-muted-foreground">
+          {value}
+          {note ? ` · ${note}` : ""}
+        </p>
       </div>
     </div>
   );
@@ -349,7 +415,6 @@ export default function TimeEntryModal({
 
 type ShiftSectionProps = {
   label: string;
-  color: "blue" | "orange";
   icon: React.ReactNode;
   isPermesso: boolean;
   onPermessoChange: (checked: boolean) => void;
@@ -361,70 +426,91 @@ type ShiftSectionProps = {
   timePrefix: string;
 };
 
+/*
+ * Morning and afternoon used to be a blue panel and an orange one. The colours
+ * carried no meaning — they were not a status, and they clashed with any
+ * customer brand — so both shifts now share one neutral panel and are told
+ * apart by their label and icon.
+ */
 function ShiftSection({
-  label, color, icon, isPermesso, onPermessoChange,
-  startValue, endValue, onStartChange, onEndChange,
-  duration, timePrefix,
+  label,
+  icon,
+  isPermesso,
+  onPermessoChange,
+  startValue,
+  endValue,
+  onStartChange,
+  onEndChange,
+  duration,
+  timePrefix,
 }: ShiftSectionProps) {
-  const colorClasses = color === "blue"
-    ? { bg: "bg-blue-50/50 dark:bg-blue-900/10", border: "border-blue-100 dark:border-blue-900/20", title: "text-blue-900 dark:text-blue-100", label: "text-blue-800 dark:text-blue-200", duration: "text-blue-700 dark:text-blue-300", durationBold: "text-blue-900 dark:text-blue-100", check: "border-blue-300 text-blue-600 focus:ring-blue-500", note: "text-blue-700 dark:text-blue-300" }
-    : { bg: "bg-orange-50/50 dark:bg-orange-900/10", border: "border-orange-100 dark:border-orange-900/20", title: "text-orange-900 dark:text-orange-100", label: "text-orange-800 dark:text-orange-200", duration: "text-orange-700 dark:text-orange-300", durationBold: "text-orange-900 dark:text-orange-100", check: "border-orange-300 text-orange-600 focus:ring-orange-500", note: "text-orange-700 dark:text-orange-300" };
-
   return (
-    <div className={`rounded-xl ${colorClasses.bg} border ${colorClasses.border} p-4 shadow-sm`}>
-      <div className="mb-3 flex items-center gap-2">
-        {icon}
-        <h3 className={`text-sm font-bold ${colorClasses.title}`}>{label}</h3>
+    <div className="rounded-md border border-border p-3">
+      <div className="mb-2.5 flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2 text-muted-foreground [&_svg]:size-4">
+          {icon}
+          <h3 className="text-[13px] font-medium text-foreground">{label}</h3>
+        </div>
+        {!isPermesso && duration > 0 && (
+          <span className="text-xs tabular-nums text-muted-foreground">
+            {duration.toFixed(2)} ore
+          </span>
+        )}
       </div>
-      <div className="mb-3">
-        <label className="flex items-center gap-2">
-          <input
-            type="checkbox"
-            checked={isPermesso}
-            onChange={(e) => onPermessoChange(e.target.checked)}
-            className={`h-4 w-4 rounded ${colorClasses.check}`}
-          />
-          <span className={`text-xs font-medium ${colorClasses.label}`}>Permesso Totale Turno (4h)</span>
-        </label>
+
+      <label className="mb-2.5 flex cursor-pointer items-center gap-2">
+        <input
+          type="checkbox"
+          checked={isPermesso}
+          onChange={(e) => onPermessoChange(e.target.checked)}
+          className="size-4 cursor-pointer accent-[hsl(var(--primary))]"
+        />
+        <span className="text-xs text-muted-foreground">
+          Permesso per l&apos;intero turno (4h)
+        </span>
+      </label>
+
+      <div className="grid grid-cols-2 gap-2">
+        <Field label="Inizio">
+          {(field) => (
+            <Select
+              {...field}
+              value={startValue}
+              onChange={(e) => onStartChange(e.target.value)}
+              disabled={isPermesso}
+            >
+              <option value="">—</option>
+              {TIME_OPTIONS.map((time) => (
+                <option key={`${timePrefix}-start-${time}`} value={time}>
+                  {time}
+                </option>
+              ))}
+            </Select>
+          )}
+        </Field>
+        <Field label="Fine">
+          {(field) => (
+            <Select
+              {...field}
+              value={endValue}
+              onChange={(e) => onEndChange(e.target.value)}
+              disabled={isPermesso}
+            >
+              <option value="">—</option>
+              {TIME_OPTIONS.map((time) => (
+                <option key={`${timePrefix}-end-${time}`} value={time}>
+                  {time}
+                </option>
+              ))}
+            </Select>
+          )}
+        </Field>
       </div>
-      <div className="grid grid-cols-2 gap-3">
-        <label className="flex flex-col gap-2">
-          <span className={`text-xs font-semibold ${colorClasses.label}`}>Ora inizio</span>
-          <select
-            value={startValue}
-            onChange={(e) => onStartChange(e.target.value)}
-            disabled={isPermesso}
-            className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            <option value="">--</option>
-            {TIME_OPTIONS.map((time) => (
-              <option key={`${timePrefix}-start-${time}`} value={time}>{time}</option>
-            ))}
-          </select>
-        </label>
-        <label className="flex flex-col gap-2">
-          <span className={`text-xs font-semibold ${colorClasses.label}`}>Ora fine</span>
-          <select
-            value={endValue}
-            onChange={(e) => onEndChange(e.target.value)}
-            disabled={isPermesso}
-            className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            <option value="">--</option>
-            {TIME_OPTIONS.map((time) => (
-              <option key={`${timePrefix}-end-${time}`} value={time}>{time}</option>
-            ))}
-          </select>
-        </label>
-      </div>
-      {!isPermesso && (
-        <p className="mt-3 flex items-center justify-between text-xs">
-          <span className={`font-medium ${colorClasses.duration}`}>Durata:</span>
-          <span className={`font-bold ${colorClasses.durationBold}`}>{duration.toFixed(2)} ore</span>
-        </p>
-      )}
+
       {isPermesso && (
-        <p className={`mt-2 text-xs ${colorClasses.note}`}>Queste ore saranno conteggiate come permesso.</p>
+        <p className="mt-2 text-xs text-info">
+          Queste ore saranno conteggiate come permesso.
+        </p>
       )}
     </div>
   );

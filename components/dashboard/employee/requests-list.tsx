@@ -4,7 +4,23 @@ import { useState, useEffect } from "react";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
 import RequestLeaveModal from "./request-leave-modal";
-import { cn } from "@/lib/utils";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { ConfirmDialog } from "@/components/ui/dialog";
+import { EmptyState } from "@/components/ui/empty-state";
+import { Select } from "@/components/ui/input";
+import { Skeleton } from "@/components/ui/skeleton";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+  TableToolbar,
+  TableWrapper,
+} from "@/components/ui/table";
+import { useToast } from "@/components/ui/toast";
 import { 
   CheckCircle2, 
   XCircle, 
@@ -42,6 +58,11 @@ export default function RequestsList({ isAdmin }: RequestsListProps) {
   const [filterStatus, setFilterStatus] = useState<string>("ALL");
   const [editingRequest, setEditingRequest] = useState<LeaveRequest | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [pendingAction, setPendingAction] = useState<
+    { id: string; status: "APPROVED" | "REJECTED" } | null
+  >(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const toast = useToast();
 
   const fetchRequests = async () => {
     setIsLoading(true);
@@ -71,8 +92,7 @@ export default function RequestsList({ isAdmin }: RequestsListProps) {
   }, [filterStatus]);
 
   const handleAction = async (id: string, status: "APPROVED" | "REJECTED") => {
-    if (!confirm(`Sei sicuro di voler impostare lo stato a ${status}?`)) return;
-    
+    setPendingAction(null);
     try {
       const res = await fetch(`/api/requests/${id}`, {
         method: "PATCH",
@@ -81,15 +101,23 @@ export default function RequestsList({ isAdmin }: RequestsListProps) {
       });
 
       if (res.ok) {
-        // Refresh list
         fetchRequests();
+        toast({
+          title:
+            status === "APPROVED" ? "Richiesta approvata" : "Richiesta rifiutata",
+          variant: "success",
+        });
       } else {
         const msg = await res.text();
-        alert(`Errore: ${msg}`);
+        toast({
+          title: "Aggiornamento non riuscito",
+          description: msg,
+          variant: "error",
+        });
       }
     } catch (error) {
       console.error("Error updating request", error);
-      alert("Errore di connessione");
+      toast({ title: "Errore di connessione", variant: "error" });
     }
   };
 
@@ -104,8 +132,7 @@ export default function RequestsList({ isAdmin }: RequestsListProps) {
   };
 
   const deleteRequest = async (id: string) => {
-    if (!confirm("Sei sicuro di voler eliminare questa richiesta?")) return;
-    
+    setDeletingId(null);
     try {
       const res = await fetch(`/api/requests/${id}`, {
         method: "DELETE",
@@ -113,12 +140,13 @@ export default function RequestsList({ isAdmin }: RequestsListProps) {
 
       if (res.ok) {
         fetchRequests();
+        toast({ title: "Richiesta eliminata", variant: "success" });
       } else {
-        alert("Errore nell'eliminazione");
+        toast({ title: "Eliminazione non riuscita", variant: "error" });
       }
     } catch (error) {
       console.error("Error deleting request", error);
-      alert("Errore di connessione");
+      toast({ title: "Errore di connessione", variant: "error" });
     }
   };
 
@@ -126,27 +154,30 @@ export default function RequestsList({ isAdmin }: RequestsListProps) {
     switch (status) {
       case "APPROVED":
         return (
-          <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-100 dark:bg-emerald-900/30 px-2.5 py-0.5 text-xs font-medium text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800">
-            <CheckCircle2 className="h-3.5 w-3.5" />
+          <Badge variant="success">
+            <CheckCircle2 className="size-3" />
             Approvata
-          </span>
+          </Badge>
         );
       case "REJECTED":
         return (
-          <span className="inline-flex items-center gap-1.5 rounded-full bg-destructive/10 px-2.5 py-0.5 text-xs font-medium text-destructive border border-destructive/20">
-            <XCircle className="h-3.5 w-3.5" />
+          <Badge variant="danger">
+            <XCircle className="size-3" />
             Rifiutata
-          </span>
+          </Badge>
         );
       default:
         return (
-          <span className="inline-flex items-center gap-1.5 rounded-full bg-yellow-100 dark:bg-yellow-900/30 px-2.5 py-0.5 text-xs font-medium text-yellow-700 dark:text-yellow-400 border border-yellow-200 dark:border-yellow-800">
-            <Clock className="h-3.5 w-3.5" />
-            In Attesa
-          </span>
+          <Badge variant="warning">
+            <Clock className="size-3" />
+            In attesa
+          </Badge>
         );
     }
   };
+
+  const typeVariant = (type: string) =>
+    type === "VACATION" ? "info" : type === "SICKNESS" ? "danger" : "warning";
 
   const getTypeLabel = (type: string) => {
     switch (type) {
@@ -157,161 +188,167 @@ export default function RequestsList({ isAdmin }: RequestsListProps) {
     }
   };
 
+  const filterControl = (
+    <div className="relative">
+      <Filter className="pointer-events-none absolute left-3 top-1/2 z-10 size-4 -translate-y-1/2 text-muted-foreground" />
+      <Select
+        aria-label="Filtra per stato"
+        value={filterStatus}
+        onChange={(e) => setFilterStatus(e.target.value)}
+        className="w-auto pl-9"
+      >
+        <option value="ALL">Tutti gli stati</option>
+        <option value="PENDING">In attesa</option>
+        <option value="APPROVED">Approvate</option>
+        <option value="REJECTED">Rifiutate</option>
+      </Select>
+    </div>
+  );
+
   return (
-    <div className="overflow-hidden rounded-xl border border-border bg-card shadow-sm">
-      <div className="px-6 py-4 border-b border-border flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 bg-muted/30">
-        <div>
-          <h2 className="text-lg font-semibold text-foreground">
-            Gestione Richieste
-          </h2>
-          <p className="mt-1 text-sm text-muted-foreground">
-            {isAdmin
-              ? "Gestisci le richieste di ferie e permessi dei dipendenti."
-              : "Visualizza lo stato delle tue richieste di ferie e permessi."}
-          </p>
-        </div>
-        <div className="relative">
-          <Filter className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <select
-            value={filterStatus}
-            onChange={(e) => setFilterStatus(e.target.value)}
-            className="pl-9 pr-8 h-10 rounded-lg border border-input bg-background text-sm text-foreground shadow-sm transition-all hover:bg-accent/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 cursor-pointer"
-          >
-            <option value="ALL">Tutti gli stati</option>
-            <option value="PENDING">In Attesa</option>
-            <option value="APPROVED">Approvate</option>
-            <option value="REJECTED">Rifiutate</option>
-          </select>
-        </div>
-      </div>
+    <TableWrapper>
+      <TableToolbar
+        title="Richieste"
+        description={
+          isAdmin
+            ? "Ferie e permessi richiesti dal team."
+            : "Lo stato delle tue richieste di ferie e permessi."
+        }
+        actions={filterControl}
+      />
 
       {isLoading ? (
-        <div className="flex items-center justify-center py-12 text-muted-foreground">
-          <div className="flex flex-col items-center gap-2">
-            <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent"></div>
-            <p className="text-sm">Caricamento richieste...</p>
-          </div>
+        <div className="space-y-2 p-4">
+          {[0, 1, 2].map((i) => (
+            <Skeleton key={i} className="h-12 w-full" />
+          ))}
         </div>
       ) : requests.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
-          <div className="rounded-full bg-muted p-4 mb-3">
-            <Clock className="h-8 w-8 text-muted-foreground/50" />
-          </div>
-          <p className="text-sm font-medium">Nessuna richiesta trovata</p>
-        </div>
+        <EmptyState
+          compact
+          icon={<Clock />}
+          title="Nessuna richiesta"
+          description={
+            filterStatus === "ALL"
+              ? isAdmin
+                ? "Quando il team richiederà ferie o permessi, le richieste compariranno qui."
+                : "Non hai ancora inviato richieste di ferie o permessi."
+              : "Nessuna richiesta corrisponde al filtro selezionato."
+          }
+        />
       ) : (
-        <div className="space-y-4 p-4">
+        <>
           {/* Desktop Table View */}
-          <div className="hidden md:block overflow-x-auto rounded-lg border border-border">
-            <table className="min-w-full divide-y divide-border">
-              <thead className="bg-muted/50">
-                <tr>
-                  {isAdmin && (
-                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-muted-foreground">
-                      Utente
-                    </th>
-                  )}
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-muted-foreground">
-                    Tipo
-                  </th>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-muted-foreground">
-                    Periodo
-                  </th>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-muted-foreground">
-                    Stato
-                  </th>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-muted-foreground">
-                    Motivazione
-                  </th>
-                  {isAdmin && (
-                    <th scope="col" className="px-6 py-3 text-right text-xs font-medium uppercase tracking-wider text-muted-foreground">
-                      Azioni
-                    </th>
-                  )}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border bg-card">
+          <div className="hidden md:block">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  {isAdmin && <TableHead>Utente</TableHead>}
+                  <TableHead>Tipo</TableHead>
+                  <TableHead>Periodo</TableHead>
+                  <TableHead>Stato</TableHead>
+                  <TableHead>Motivazione</TableHead>
+                  {isAdmin && <TableHead className="text-right">Azioni</TableHead>}
+                </TableRow>
+              </TableHeader>
+              <TableBody>
                 {requests.map((req) => (
-                  <tr key={req.id} className="hover:bg-muted/30 transition-colors">
+                  <TableRow key={req.id}>
                     {isAdmin && (
-                      <td className="whitespace-nowrap px-6 py-4">
-                        <div className="flex items-center">
-                          <div className="text-sm font-medium text-foreground">
-                            {req.user.name || req.user.email}
-                          </div>
-                        </div>
-                      </td>
+                      <TableCell className="whitespace-nowrap text-[13px] font-medium">
+                        {req.user.name || req.user.email}
+                      </TableCell>
                     )}
-                    <td className="whitespace-nowrap px-6 py-4 text-sm text-muted-foreground">
-                      {getTypeLabel(req.type)}
-                    </td>
-                    <td className="whitespace-nowrap px-6 py-4 text-sm text-muted-foreground">
+                    <TableCell className="whitespace-nowrap">
+                      <Badge dot variant={typeVariant(req.type)}>
+                        {getTypeLabel(req.type)}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="whitespace-nowrap text-[13px] text-muted-foreground">
                       <div className="flex flex-col">
                         <span>
                           {format(new Date(req.startDate), "d MMM", { locale: it })} -{" "}
                           {format(new Date(req.endDate), "d MMM yyyy", { locale: it })}
                         </span>
                         {req.type === "PERMESSO" && req.startTime && req.endTime && (
-                          <span className="text-xs text-muted-foreground/70 mt-0.5">
-                            {req.startTime} - {req.endTime}
+                          <span className="mt-0.5 text-xs text-muted-foreground/70">
+                            {req.startTime} – {req.endTime}
                           </span>
                         )}
                       </div>
-                    </td>
-                    <td className="whitespace-nowrap px-6 py-4">
+                    </TableCell>
+                    <TableCell className="whitespace-nowrap">
                       {getStatusBadge(req.status)}
-                    </td>
-                    <td className="px-6 py-4 text-sm text-muted-foreground max-w-xs truncate" title={req.reason}>
-                      {req.reason || "-"}
-                    </td>
+                    </TableCell>
+                    <TableCell
+                      className="max-w-xs truncate text-[13px] text-muted-foreground"
+                      title={req.reason}
+                    >
+                      {req.reason || <span className="text-muted-foreground/50">—</span>}
+                    </TableCell>
                     {isAdmin && (
-                      <td className="whitespace-nowrap px-6 py-4 text-right text-sm font-medium">
-                        <div className="flex justify-end gap-2">
-                          <button
-                            onClick={() => startEdit(req)}
-                            className="p-1.5 text-muted-foreground hover:text-primary hover:bg-primary/10 rounded-md transition-colors"
+                      <TableCell className="whitespace-nowrap text-right">
+                        <div className="flex justify-end gap-1">
+                          <Button
+                            size="icon"
+                            variant="ghost"
                             title="Modifica"
+                            aria-label="Modifica richiesta"
+                            onClick={() => startEdit(req)}
                           >
-                            <Edit2 className="h-4 w-4" />
-                          </button>
+                            <Edit2 />
+                          </Button>
                           {req.status === "PENDING" && (
                             <>
-                              <button
-                                onClick={() => handleAction(req.id, "APPROVED")}
-                                className="p-1.5 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 rounded-md transition-colors"
+                              <Button
+                                size="icon"
+                                variant="ghost"
                                 title="Approva"
+                                aria-label="Approva richiesta"
+                                className="hover:bg-success-subtle hover:text-success"
+                                onClick={() =>
+                                  setPendingAction({ id: req.id, status: "APPROVED" })
+                                }
                               >
-                                <Check className="h-4 w-4" />
-                              </button>
-                              <button
-                                onClick={() => handleAction(req.id, "REJECTED")}
-                                className="p-1.5 text-destructive hover:text-destructive/80 hover:bg-destructive/10 rounded-md transition-colors"
+                                <Check />
+                              </Button>
+                              <Button
+                                size="icon"
+                                variant="ghost"
                                 title="Rifiuta"
+                                aria-label="Rifiuta richiesta"
+                                className="hover:bg-destructive-subtle hover:text-destructive"
+                                onClick={() =>
+                                  setPendingAction({ id: req.id, status: "REJECTED" })
+                                }
                               >
-                                <X className="h-4 w-4" />
-                              </button>
+                                <X />
+                              </Button>
                             </>
                           )}
-                          <button
-                            onClick={() => deleteRequest(req.id)}
-                            className="p-1.5 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-md transition-colors"
+                          <Button
+                            size="icon"
+                            variant="ghost"
                             title="Elimina"
+                            aria-label="Elimina richiesta"
+                            className="hover:bg-destructive-subtle hover:text-destructive"
+                            onClick={() => setDeletingId(req.id)}
                           >
-                            <Trash2 className="h-4 w-4" />
-                          </button>
+                            <Trash2 />
+                          </Button>
                         </div>
-                      </td>
+                      </TableCell>
                     )}
-                  </tr>
+                  </TableRow>
                 ))}
-              </tbody>
-            </table>
+              </TableBody>
+            </Table>
           </div>
 
           {/* Mobile Card View */}
-          <div className="md:hidden space-y-4">
+          <div className="space-y-2 p-3 md:hidden">
             {requests.map((req) => (
-              <div key={req.id} className="rounded-lg border border-border bg-card p-4 shadow-sm space-y-3">
+              <div key={req.id} className="space-y-3 rounded-md border border-border p-3">
                 <div className="flex items-start justify-between">
                   <div className="space-y-1">
                     {isAdmin && (
@@ -320,14 +357,9 @@ export default function RequestsList({ isAdmin }: RequestsListProps) {
                       </p>
                     )}
                     <div className="flex items-center gap-2">
-                      <span className={cn(
-                        "inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium",
-                        req.type === "VACATION" && "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400",
-                        req.type === "SICKNESS" && "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400",
-                        req.type === "PERMESSO" && "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400"
-                      )}>
+                      <Badge dot variant={typeVariant(req.type)}>
                         {getTypeLabel(req.type)}
-                      </span>
+                      </Badge>
                       {getStatusBadge(req.status)}
                     </div>
                   </div>
@@ -357,44 +389,46 @@ export default function RequestsList({ isAdmin }: RequestsListProps) {
 
                 {isAdmin && (
                   <div className="flex items-center justify-end gap-2 pt-2 border-t border-border mt-2">
-                    <button
-                      onClick={() => startEdit(req)}
-                      className="p-2 text-muted-foreground hover:text-primary hover:bg-primary/10 rounded-md transition-colors"
-                      title="Modifica"
-                    >
-                      <Edit2 className="h-4 w-4" />
-                    </button>
+                    <Button size="icon" variant="ghost" title="Modifica" onClick={() => startEdit(req)}>
+                      <Edit2 />
+                    </Button>
                     {req.status === "PENDING" && (
                       <>
-                        <button
-                          onClick={() => handleAction(req.id, "APPROVED")}
-                          className="p-2 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 rounded-md transition-colors"
+                        <Button
+                          size="icon"
+                          variant="ghost"
                           title="Approva"
+                          className="hover:bg-success-subtle hover:text-success"
+                          onClick={() => setPendingAction({ id: req.id, status: "APPROVED" })}
                         >
-                          <Check className="h-4 w-4" />
-                        </button>
-                        <button
-                          onClick={() => handleAction(req.id, "REJECTED")}
-                          className="p-2 text-destructive hover:text-destructive/80 hover:bg-destructive/10 rounded-md transition-colors"
+                          <Check />
+                        </Button>
+                        <Button
+                          size="icon"
+                          variant="ghost"
                           title="Rifiuta"
+                          className="hover:bg-destructive-subtle hover:text-destructive"
+                          onClick={() => setPendingAction({ id: req.id, status: "REJECTED" })}
                         >
-                          <X className="h-4 w-4" />
-                        </button>
+                          <X />
+                        </Button>
                       </>
                     )}
-                    <button
-                      onClick={() => deleteRequest(req.id)}
-                      className="p-2 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-md transition-colors"
+                    <Button
+                      size="icon"
+                      variant="ghost"
                       title="Elimina"
+                      className="hover:bg-destructive-subtle hover:text-destructive"
+                      onClick={() => setDeletingId(req.id)}
                     >
-                      <Trash2 className="h-4 w-4" />
-                    </button>
+                      <Trash2 />
+                    </Button>
                   </div>
                 )}
               </div>
             ))}
           </div>
-        </div>
+        </>
       )}
 
       <RequestLeaveModal
@@ -402,6 +436,36 @@ export default function RequestsList({ isAdmin }: RequestsListProps) {
         onClose={closeModal}
         editRequest={editingRequest}
       />
-    </div>
+
+      <ConfirmDialog
+        open={pendingAction !== null}
+        onClose={() => setPendingAction(null)}
+        onConfirm={() =>
+          pendingAction && handleAction(pendingAction.id, pendingAction.status)
+        }
+        title={
+          pendingAction?.status === "APPROVED"
+            ? "Approvare la richiesta?"
+            : "Rifiutare la richiesta?"
+        }
+        description={
+          pendingAction?.status === "APPROVED"
+            ? "Il dipendente riceve una notifica e le ore di assenza vengono registrate a calendario."
+            : "Il dipendente riceve una notifica del rifiuto."
+        }
+        confirmLabel={pendingAction?.status === "APPROVED" ? "Approva" : "Rifiuta"}
+        destructive={pendingAction?.status === "REJECTED"}
+      />
+
+      <ConfirmDialog
+        open={deletingId !== null}
+        onClose={() => setDeletingId(null)}
+        onConfirm={() => deletingId && deleteRequest(deletingId)}
+        title="Eliminare la richiesta?"
+        description="La richiesta viene rimossa definitivamente."
+        confirmLabel="Elimina"
+        destructive
+      />
+    </TableWrapper>
   );
 }

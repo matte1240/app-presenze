@@ -9,13 +9,23 @@ import {
   RefreshCw, 
   AlertTriangle, 
   FileText,
-  HardDrive,
-  ScrollText
 } from "lucide-react";
 import { downloadBlob } from "@/lib/utils/file-utils";
 import { Card } from "@/components/ui/card";
 import { Alert } from "@/components/ui/alert";
-import { Spinner } from "@/components/ui/spinner";
+import { Button } from "@/components/ui/button";
+import { ConfirmDialog } from "@/components/ui/dialog";
+import { EmptyState } from "@/components/ui/empty-state";
+import { PageContainer, PageHeader, Section } from "@/components/layout/page";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+  TableWrapper,
+} from "@/components/ui/table";
 import { LogViewer } from "@/components/dashboard/admin/log-viewer";
 
 interface Backup {
@@ -29,6 +39,7 @@ interface Backup {
 export function ManageServer() {
   const router = useRouter();
   const [backups, setBackups] = useState<Backup[]>([]);
+  const [pendingRestore, setPendingRestore] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
@@ -132,17 +143,15 @@ export function ManageServer() {
       return;
     }
 
-    const confirmed = window.confirm(
-      `⚠️ ATTENZIONE: Il ripristino del database sovrascriverà tutti i dati attuali!\n\n` +
-        `Vuoi davvero ripristinare il backup "${file.name}"?\n\n` +
-        `Al termine l'applicazione si riavvierà automaticamente.\n` +
-        `Questa operazione non può essere annullata.`
-    );
+    // Hold the file and let the confirmation dialog decide: a native
+    // window.confirm cannot say what is about to be overwritten, and cannot be
+    // styled to look like it belongs to the product.
+    setPendingRestore(file);
+    event.target.value = "";
+  };
 
-    if (!confirmed) {
-      event.target.value = ""; // Reset file input
-      return;
-    }
+  const performRestore = async (file: File) => {
+    setPendingRestore(null);
 
     try {
       setLoading(true);
@@ -177,7 +186,6 @@ export function ManageServer() {
       console.error("Error restoring backup:", err);
     } finally {
       setLoading(false);
-      event.target.value = ""; // Reset file input
     }
   };
 
@@ -192,169 +200,147 @@ export function ManageServer() {
   };
 
   return (
-    <div className="min-h-screen bg-background py-8 px-4">
-      <div className="max-w-6xl mx-auto">
-        <Card>
-          <div className="flex items-center gap-3 mb-6">
-            <div className="p-2 bg-primary/10 rounded-lg">
-              <Database className="w-6 h-6 text-primary" />
-            </div>
-            <h1 className="text-3xl font-bold text-foreground">
-              Gestione Server
-            </h1>
-          </div>
+    <PageContainer width="wide" className="space-y-6">
+      <PageHeader
+        title="Server"
+        description="Backup del database e registro delle operazioni."
+      />
 
-          {/* Alerts */}
-          {error && (
-            <Alert variant="error" className="mb-6" title="Errore">{error}</Alert>
+      {error && <Alert variant="error" title="Errore">{error}</Alert>}
+      {success && <Alert variant="success" title="Fatto">{success}</Alert>}
+
+      <Section title="Backup del database">
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+          <Card className="flex flex-col">
+            <h3 className="flex items-center gap-2 text-sm font-semibold text-foreground">
+              <Download className="size-4 text-muted-foreground" />
+              Crea backup
+            </h3>
+            <p className="mt-1 flex-1 text-[13px] leading-relaxed text-muted-foreground">
+              Snapshot consistente del database, eseguito senza fermare
+              l&apos;applicazione.
+            </p>
+            <Button
+              className="mt-4 w-full"
+              onClick={handleCreateBackup}
+              loading={loading}
+              icon={<Download />}
+            >
+              {loading ? "Creazione…" : "Crea backup"}
+            </Button>
+          </Card>
+
+          <Card className="flex flex-col">
+            <h3 className="flex items-center gap-2 text-sm font-semibold text-foreground">
+              <Upload className="size-4 text-muted-foreground" />
+              Ripristina database
+            </h3>
+            <p className="mt-1 flex-1 text-[13px] leading-relaxed text-muted-foreground">
+              Carica un file <code className="font-mono text-xs">.db</code>{" "}
+              creato da un backup precedente.
+            </p>
+            <label className="mt-4 block cursor-pointer">
+              <span className="sr-only">Seleziona un file di backup</span>
+              <input
+                type="file"
+                accept=".db"
+                onChange={handleRestoreBackup}
+                disabled={loading}
+                className="block w-full cursor-pointer text-[13px] text-muted-foreground file:mr-3 file:cursor-pointer file:rounded-md file:border file:border-border file:bg-card file:px-3 file:py-1.5 file:text-[13px] file:font-medium file:text-foreground hover:file:bg-accent disabled:cursor-not-allowed disabled:opacity-50"
+              />
+            </label>
+            <p className="mt-2 flex items-center gap-1.5 text-xs text-destructive">
+              <AlertTriangle className="size-3 shrink-0" />
+              Sovrascrive tutti i dati e riavvia l&apos;applicazione.
+            </p>
+          </Card>
+        </div>
+      </Section>
+
+      <Section
+        title={`Backup disponibili (${backups.length})`}
+        actions={
+          <Button size="sm" variant="ghost" icon={<RefreshCw />} onClick={fetchBackups}>
+            Aggiorna
+          </Button>
+        }
+      >
+        <TableWrapper>
+          {backups.length === 0 ? (
+            <EmptyState
+              compact
+              icon={<Database />}
+              title="Nessun backup"
+              description="Crea il primo backup per poter ripristinare i dati in caso di problemi."
+              action={
+                <Button size="sm" onClick={handleCreateBackup} loading={loading}>
+                  Crea backup
+                </Button>
+              }
+            />
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>File</TableHead>
+                  <TableHead>Dimensione</TableHead>
+                  <TableHead>Creato</TableHead>
+                  <TableHead className="text-right">Azioni</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {backups.map((backup) => (
+                  <TableRow key={backup.filename}>
+                    <TableCell className="whitespace-nowrap">
+                      <span className="flex items-center gap-2 font-mono text-xs text-foreground">
+                        <FileText className="size-3.5 shrink-0 text-muted-foreground" />
+                        {backup.filename}
+                      </span>
+                    </TableCell>
+                    <TableCell className="whitespace-nowrap text-[13px] text-muted-foreground">
+                      {backup.sizeFormatted}
+                    </TableCell>
+                    <TableCell className="whitespace-nowrap text-[13px] text-muted-foreground">
+                      {formatDate(backup.created)}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        icon={<Download />}
+                        onClick={() => handleDownloadBackup(backup.filename)}
+                      >
+                        Scarica
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
           )}
+        </TableWrapper>
+      </Section>
 
-          {success && (
-            <Alert variant="success" className="mb-6" title="Successo">{success}</Alert>
-          )}
-
-          {/* Actions */}
-          <div className="mb-8 space-y-4">
-            <h2 className="text-xl font-semibold text-foreground mb-4 flex items-center gap-2">
-              <HardDrive className="w-5 h-5 text-muted-foreground" />
-              Azioni Database
-            </h2>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {/* Create Backup */}
-              <div className="border border-border rounded-xl p-6 bg-card hover:bg-muted/50 transition-colors">
-                <h3 className="font-semibold text-foreground mb-2 flex items-center gap-2">
-                  <Download className="w-4 h-4 text-primary" />
-                  Crea Backup
-                </h3>
-                <p className="text-sm text-muted-foreground mb-4">
-                  Crea uno snapshot completo del database SQLite
-                </p>
-                <button
-                  onClick={handleCreateBackup}
-                  disabled={loading}
-                  className="w-full bg-primary hover:bg-primary/90 text-primary-foreground font-semibold py-2 px-4 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2 cursor-pointer"
-                >
-                  {loading ? <Spinner size="sm" /> : <Download className="w-4 h-4" />}
-                  {loading ? "Creazione in corso..." : "Crea Backup"}
-                </button>
-              </div>
-
-              {/* Restore Backup */}
-              <div className="border border-border rounded-xl p-6 bg-card hover:bg-muted/50 transition-colors">
-                <h3 className="font-semibold text-foreground mb-2 flex items-center gap-2">
-                  <Upload className="w-4 h-4 text-destructive" />
-                  Ripristina Database
-                </h3>
-                <p className="text-sm text-muted-foreground mb-4">
-                  Carica un file .db per ripristinare il database
-                </p>
-                <label className="block cursor-pointer">
-                  <input
-                    type="file"
-                    accept=".db"
-                    onChange={handleRestoreBackup}
-                    disabled={loading}
-                    className="block w-full text-sm text-muted-foreground file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-destructive/10 file:text-destructive hover:file:bg-destructive/20 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
-                  />
-                </label>
-                <p className="text-xs text-destructive mt-2 flex items-center gap-1">
-                  <AlertTriangle className="w-3 h-3" />
-                  Attenzione: sovrascrive tutti i dati e riavvia l&apos;applicazione!
-                </p>
-              </div>
-            </div>
-          </div>
-
-          {/* Backups List */}
-          <div>
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-xl font-semibold text-foreground flex items-center gap-2">
-                <FileText className="w-5 h-5 text-muted-foreground" />
-                Backup Disponibili ({backups.length})
-              </h2>
-              <button
-                onClick={fetchBackups}
-                className="text-primary hover:text-primary/80 font-medium text-sm flex items-center gap-1 transition-colors cursor-pointer"
-              >
-                <RefreshCw className="w-4 h-4" />
-                Aggiorna Lista
-              </button>
-            </div>
-
-            {backups.length === 0 ? (
-              <div className="text-center py-12 border-2 border-dashed border-border rounded-xl bg-muted/30">
-                <Database className="w-12 h-12 text-muted-foreground mx-auto mb-3 opacity-50" />
-                <p className="text-muted-foreground font-medium">Nessun backup disponibile</p>
-                <p className="text-sm text-muted-foreground mt-1">
-                  Crea il primo backup usando il pulsante sopra
-                </p>
-              </div>
-            ) : (
-              <div className="overflow-hidden rounded-xl border border-border bg-card">
-                <div className="overflow-x-auto">
-                  <table className="min-w-full divide-y divide-border">
-                    <thead className="bg-muted/50">
-                      <tr>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                          Nome File
-                        </th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                          Dimensione
-                        </th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                          Data Creazione
-                        </th>
-                        <th className="px-6 py-3 text-right text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                          Azioni
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody className="bg-card divide-y divide-border">
-                      {backups.map((backup) => (
-                        <tr key={backup.filename} className="hover:bg-muted/50 transition-colors">
-                          <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-foreground flex items-center gap-2">
-                            <FileText className="w-4 h-4 text-muted-foreground" />
-                            {backup.filename}
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-muted-foreground">
-                            {backup.sizeFormatted}
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-muted-foreground">
-                            {formatDate(backup.created)}
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                            <button
-                              onClick={() => handleDownloadBackup(backup.filename)}
-                              className="text-primary hover:text-primary/80 transition-colors inline-flex items-center gap-1 cursor-pointer"
-                            >
-                              <Download className="w-4 h-4" />
-                              Scarica
-                            </button>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            )}
-          </div>
-        </Card>
-
-        {/* Audit Logs */}
-        <Card>
-          <div className="flex items-center gap-3 mb-6">
-            <div className="p-2 bg-primary/10 rounded-lg">
-              <ScrollText className="w-6 h-6 text-primary" />
-            </div>
-            <h2 className="text-2xl font-bold text-foreground">
-              Log di Audit
-            </h2>
-          </div>
+      <Section title="Log di audit">
+        <Card noPadding>
           <LogViewer />
         </Card>
-      </div>
-    </div>
+      </Section>
+
+      <ConfirmDialog
+        open={pendingRestore !== null}
+        onClose={() => setPendingRestore(null)}
+        onConfirm={() => pendingRestore && performRestore(pendingRestore)}
+        title="Ripristinare il database?"
+        description={
+          pendingRestore
+            ? `Tutti i dati attuali vengono sostituiti con il contenuto di "${pendingRestore.name}". L'applicazione si riavvia al termine e l'operazione non può essere annullata.`
+            : undefined
+        }
+        confirmLabel="Ripristina"
+        destructive
+        loading={loading}
+      />
+    </PageContainer>
   );
 }

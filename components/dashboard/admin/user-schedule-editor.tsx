@@ -1,7 +1,11 @@
 "use client";
 
 import { useState, useEffect, useTransition } from "react";
-import { X, Calendar, Clock, AlertCircle, CheckCircle, Loader2 } from "lucide-react";
+import { Alert } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
+import { Dialog } from "@/components/ui/dialog";
+import { Field, Input, Select } from "@/components/ui/input";
+import { Skeleton } from "@/components/ui/skeleton";
 import { WorkingScheduleDTO, DAY_NAMES } from "@/types/models";
 import { cn } from "@/lib/utils";
 import { TIME_OPTIONS } from "@/lib/utils/time-utils";
@@ -197,352 +201,212 @@ export default function UserScheduleEditor({
     });
   };
 
-  if (!isOpen) return null;
+  const weeklyTotal = schedules.reduce((sum, s) => sum + s.totalHours, 0);
+
+  const timeSelect = (
+    entry: (typeof schedules)[number],
+    field: "morningStart" | "morningEnd" | "afternoonStart" | "afternoonEnd",
+    label: string
+  ) => (
+    <Field label={label}>
+      {(fieldProps) => (
+        <Select
+          {...fieldProps}
+          value={entry[field] || ""}
+          onChange={(e) =>
+            updateSchedule(entry.dayOfWeek, field, e.target.value || null)
+          }
+          className="h-8 text-[13px]"
+        >
+          <option value="">—</option>
+          {TIME_OPTIONS.map((t) => (
+            <option key={`${field}-${t}`} value={t}>
+              {t}
+            </option>
+          ))}
+        </Select>
+      )}
+    </Field>
+  );
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-in fade-in duration-200">
-      <div className="w-full max-w-4xl max-h-[90vh] overflow-hidden rounded-xl bg-card border border-border shadow-2xl flex flex-col">
-        {/* Header */}
-        <div className="border-b border-border bg-primary px-6 py-4 rounded-t-xl flex-shrink-0">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <Calendar className="h-5 w-5 text-primary-foreground" />
-              <div>
-                <h2 className="text-lg font-semibold text-primary-foreground">
-                  Orari Settimanali
-                </h2>
-                <p className="text-sm text-primary-foreground/80">{userName}</p>
-              </div>
-            </div>
-            <button
-              onClick={onClose}
-              className="rounded-lg p-1 text-primary-foreground/80 transition hover:bg-primary-foreground/20 hover:text-primary-foreground"
-            >
-              <X className="h-5 w-5" />
-            </button>
-          </div>
+    <Dialog
+      open={isOpen}
+      onClose={onClose}
+      size="lg"
+      title="Orari settimanali"
+      description={userName}
+      footer={
+        <>
+          <Button variant="ghost" onClick={onClose} disabled={isSaving}>
+            Annulla
+          </Button>
+          <Button onClick={handleSave} loading={isSaving} disabled={isLoading}>
+            {isSaving ? "Salvataggio…" : "Salva orari"}
+          </Button>
+        </>
+      }
+    >
+      {isLoading ? (
+        <div className="space-y-2">
+          {[0, 1, 2, 3, 4].map((i) => (
+            <Skeleton key={i} className="h-16 w-full" />
+          ))}
         </div>
+      ) : (
+        <div className="space-y-3">
+          <Alert variant="info">
+            Imposta l&apos;orario base di ogni giorno. Le ore lavorate oltre questo
+            orario vengono conteggiate come straordinario.
+          </Alert>
 
-        {/* Content */}
-        <div className="flex-1 overflow-y-auto p-6">
-          {isLoading ? (
-            <div className="flex items-center justify-center py-12">
-              <Loader2 className="h-8 w-8 animate-spin text-primary" />
-            </div>
-          ) : (
-            <div className="space-y-4">
-              {/* Info */}
-              <div className="flex items-start gap-3 p-4 bg-blue-50 border border-blue-200 dark:bg-blue-900/20 dark:border-blue-800 rounded-lg">
-                <Clock className="w-5 h-5 text-blue-600 dark:text-blue-400 flex-shrink-0 mt-0.5" />
-                <div className="text-sm">
-                  <p className="font-semibold text-blue-900 dark:text-blue-300 mb-1">
-                    Configura Orari Base
-                  </p>
-                  <p className="text-blue-800 dark:text-blue-400">
-                    Imposta gli orari lavorativi base per ogni giorno. Le ore lavorate oltre
-                    questi orari verranno conteggiate come straordinario.
-                  </p>
-                </div>
-              </div>
+          <label
+            htmlFor="canWorkSunday"
+            className="flex cursor-pointer items-start gap-2.5 rounded-md border border-border p-3 transition-colors hover:bg-accent/40"
+          >
+            <input
+              type="checkbox"
+              id="canWorkSunday"
+              checked={canWorkSunday}
+              onChange={(e) => setCanWorkSunday(e.target.checked)}
+              className="mt-0.5 size-4 shrink-0 cursor-pointer accent-[hsl(var(--primary))]"
+            />
+            <span>
+              <span className="block text-[13px] font-medium text-foreground">
+                Consenti lavoro domenicale
+              </span>
+              <span className="mt-0.5 block text-xs leading-relaxed text-muted-foreground">
+                Il dipendente può inserire ore di domenica; sono tutte
+                straordinario.
+              </span>
+            </span>
+          </label>
 
-              {/* Sunday Work Toggle */}
-              <div className="flex items-center justify-between p-4 bg-amber-50 border border-amber-200 dark:bg-amber-900/20 dark:border-amber-800 rounded-lg">
-                <div className="flex items-center gap-3">
-                  <input
-                    type="checkbox"
-                    id="canWorkSunday"
-                    checked={canWorkSunday}
-                    onChange={(e) => setCanWorkSunday(e.target.checked)}
-                    className="w-4 h-4 text-amber-600 border-input rounded focus:ring-2 focus:ring-amber-500 cursor-pointer"
-                  />
-                  <label htmlFor="canWorkSunday" className="cursor-pointer">
-                    <span className="font-semibold text-amber-900 dark:text-amber-300">
-                      Abilita Lavoro Domenicale
-                    </span>
-                    <p className="text-sm text-amber-700 dark:text-amber-400">
-                      Permette al dipendente di inserire ore la domenica (tutte le ore saranno straordinario)
-                    </p>
-                  </label>
-                </div>
-              </div>
+          <div className="space-y-2">
+            {schedules.map((entry) => {
+              const isSunday = entry.dayOfWeek === 0;
+              const active = !isSunday && entry.isWorkingDay;
 
-              {/* Schedule Grid */}
-              <div className="space-y-3">
-                {schedules.map((entry) => {
-                  const isSunday = entry.dayOfWeek === 0;
-                  const isSaturday = entry.dayOfWeek === 6;
-
-                  return (
-                    <div
-                      key={entry.dayOfWeek}
-                      className={cn(
-                        "rounded-lg border p-4 transition-all",
-                        isSunday
-                          ? "bg-red-50/50 border-red-200 dark:bg-red-900/10 dark:border-red-800/50"
-                          : isSaturday
-                          ? "bg-blue-50/50 border-blue-200 dark:bg-blue-900/10 dark:border-blue-800/50"
-                          : entry.isWorkingDay
-                          ? "bg-card border-border"
-                          : "bg-muted/50 border-border"
+              return (
+                <div
+                  key={entry.dayOfWeek}
+                  className={cn(
+                    "rounded-md border p-3 transition-colors",
+                    // Non-working days recede rather than each taking a hue:
+                    // Sunday used to be red and Saturday blue, which said
+                    // nothing that "closed" does not already say.
+                    active ? "border-border" : "border-border/60 bg-muted/40"
+                  )}
+                >
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-start">
+                    <div className="flex min-w-[9rem] items-center gap-2">
+                      {!isSunday && (
+                        <input
+                          type="checkbox"
+                          checked={entry.isWorkingDay}
+                          onChange={(e) =>
+                            updateSchedule(
+                              entry.dayOfWeek,
+                              "isWorkingDay",
+                              e.target.checked
+                            )
+                          }
+                          className="size-4 shrink-0 cursor-pointer accent-[hsl(var(--primary))]"
+                        />
                       )}
-                    >
-                      <div className="flex flex-col sm:flex-row sm:items-center gap-4">
-                        {/* Day Name and Toggle */}
-                        <div className="flex items-center gap-3 min-w-[160px]">
-                          {!isSunday && (
+                      <span
+                        className={cn(
+                          "text-[13px] font-medium",
+                          active ? "text-foreground" : "text-muted-foreground"
+                        )}
+                      >
+                        {DAY_NAMES[entry.dayOfWeek]}
+                      </span>
+                      {isSunday && (
+                        <span className="text-xs text-muted-foreground/70">
+                          chiuso
+                        </span>
+                      )}
+                    </div>
+
+                    {active && (
+                      <div className="grid flex-1 grid-cols-2 gap-2 sm:grid-cols-4">
+                        {timeSelect(entry, "morningStart", "Mattina da")}
+                        {timeSelect(entry, "morningEnd", "a")}
+                        {timeSelect(entry, "afternoonStart", "Pomeriggio da")}
+                        {timeSelect(entry, "afternoonEnd", "a")}
+                      </div>
+                    )}
+
+                    <div className="min-w-[8.5rem] sm:text-right">
+                      {active ? (
+                        <div className="space-y-1">
+                          <label className="flex cursor-pointer items-center gap-1.5 sm:justify-end">
                             <input
                               type="checkbox"
-                              checked={entry.isWorkingDay}
+                              checked={entry.useManualHours}
                               onChange={(e) =>
                                 updateSchedule(
                                   entry.dayOfWeek,
-                                  "isWorkingDay",
+                                  "useManualHours",
                                   e.target.checked
                                 )
                               }
-                              className="w-4 h-4 text-primary border-input rounded focus:ring-2 focus:ring-primary cursor-pointer"
+                              className="size-3.5 cursor-pointer accent-[hsl(var(--primary))]"
                             />
-                          )}
-                          <span
+                            <span className="text-xs text-muted-foreground">
+                              Ore base manuali
+                            </span>
+                          </label>
+                          <Input
+                            type="number"
+                            step="0.5"
+                            min="0"
+                            max="24"
+                            aria-label={`Ore base ${DAY_NAMES[entry.dayOfWeek]}`}
+                            value={entry.totalHours}
+                            readOnly={!entry.useManualHours}
+                            onChange={(e) => {
+                              if (!entry.useManualHours) return;
+                              const value = parseFloat(e.target.value) || 0;
+                              updateSchedule(
+                                entry.dayOfWeek,
+                                "totalHours",
+                                Math.max(0, Math.min(24, value))
+                              );
+                            }}
                             className={cn(
-                              "font-semibold",
-                              isSunday
-                                ? "text-red-600 dark:text-red-400"
-                                : isSaturday
-                                ? "text-blue-600 dark:text-blue-400"
-                                : "text-foreground"
+                              "h-8 w-20 text-center text-[13px] font-medium sm:ml-auto",
+                              !entry.useManualHours &&
+                                "cursor-not-allowed bg-muted/60 text-muted-foreground"
                             )}
-                          >
-                            {DAY_NAMES[entry.dayOfWeek]}
-                          </span>
-                          {isSunday && (
-                            <span className="text-xs text-red-500 dark:text-red-400">
-                              (sempre chiuso)
-                            </span>
-                          )}
+                          />
                         </div>
-
-                        {/* Time Inputs */}
-                        {!isSunday && entry.isWorkingDay && (
-                          <div className="flex-1 grid grid-cols-2 sm:grid-cols-4 gap-2">
-                            {/* Morning */}
-                            <div>
-                              <label className="block text-xs text-muted-foreground mb-1">
-                                Mattina Inizio
-                              </label>
-                              <select
-                                value={entry.morningStart || ""}
-                                onChange={(e) =>
-                                  updateSchedule(
-                                    entry.dayOfWeek,
-                                    "morningStart",
-                                    e.target.value || null
-                                  )
-                                }
-                                className="w-full rounded-lg border border-input bg-background px-2 py-1.5 text-sm text-foreground outline-none transition focus:border-primary focus:ring-1 focus:ring-primary/20"
-                              >
-                                <option value="">--</option>
-                                {TIME_OPTIONS.map((t) => (
-                                  <option key={`ms-${t}`} value={t}>
-                                    {t}
-                                  </option>
-                                ))}
-                              </select>
-                            </div>
-                            <div>
-                              <label className="block text-xs text-muted-foreground mb-1">
-                                Mattina Fine
-                              </label>
-                              <select
-                                value={entry.morningEnd || ""}
-                                onChange={(e) =>
-                                  updateSchedule(
-                                    entry.dayOfWeek,
-                                    "morningEnd",
-                                    e.target.value || null
-                                  )
-                                }
-                                className="w-full rounded-lg border border-input bg-background px-2 py-1.5 text-sm text-foreground outline-none transition focus:border-primary focus:ring-1 focus:ring-primary/20"
-                              >
-                                <option value="">--</option>
-                                {TIME_OPTIONS.map((t) => (
-                                  <option key={`me-${t}`} value={t}>
-                                    {t}
-                                  </option>
-                                ))}
-                              </select>
-                            </div>
-
-                            {/* Afternoon */}
-                            <div>
-                              <label className="block text-xs text-muted-foreground mb-1">
-                                Pomeriggio Inizio
-                              </label>
-                              <select
-                                value={entry.afternoonStart || ""}
-                                onChange={(e) =>
-                                  updateSchedule(
-                                    entry.dayOfWeek,
-                                    "afternoonStart",
-                                    e.target.value || null
-                                  )
-                                }
-                                className="w-full rounded-lg border border-input bg-background px-2 py-1.5 text-sm text-foreground outline-none transition focus:border-primary focus:ring-1 focus:ring-primary/20"
-                              >
-                                <option value="">--</option>
-                                {TIME_OPTIONS.map((t) => (
-                                  <option key={`as-${t}`} value={t}>
-                                    {t}
-                                  </option>
-                                ))}
-                              </select>
-                            </div>
-                            <div>
-                              <label className="block text-xs text-muted-foreground mb-1">
-                                Pomeriggio Fine
-                              </label>
-                              <select
-                                value={entry.afternoonEnd || ""}
-                                onChange={(e) =>
-                                  updateSchedule(
-                                    entry.dayOfWeek,
-                                    "afternoonEnd",
-                                    e.target.value || null
-                                  )
-                                }
-                                className="w-full rounded-lg border border-input bg-background px-2 py-1.5 text-sm text-foreground outline-none transition focus:border-primary focus:ring-1 focus:ring-primary/20"
-                              >
-                                <option value="">--</option>
-                                {TIME_OPTIONS.map((t) => (
-                                  <option key={`ae-${t}`} value={t}>
-                                    {t}
-                                  </option>
-                                ))}
-                              </select>
-                            </div>
-                          </div>
-                        )}
-
-                        {/* Total Hours - Editable with flag */}
-                        <div className="min-w-[140px] text-right">
-                          {!isSunday && entry.isWorkingDay ? (
-                            <div className="flex flex-col gap-1.5">
-                              <div className="flex items-center justify-end gap-2">
-                                <label className="text-xs text-muted-foreground">
-                                  Ore base:
-                                </label>
-                                <label className="flex items-center gap-1 cursor-pointer">
-                                  <input
-                                    type="checkbox"
-                                    checked={entry.useManualHours}
-                                    onChange={(e) =>
-                                      updateSchedule(
-                                        entry.dayOfWeek,
-                                        "useManualHours",
-                                        e.target.checked
-                                      )
-                                    }
-                                    className="w-3.5 h-3.5 rounded border-gray-300 text-primary focus:ring-primary/20"
-                                  />
-                                  <span className="text-xs text-muted-foreground">
-                                    Manuale
-                                  </span>
-                                </label>
-                              </div>
-                              <input
-                                type="number"
-                                step="0.5"
-                                min="0"
-                                max="24"
-                                value={entry.totalHours}
-                                readOnly={!entry.useManualHours}
-                                onChange={(e) => {
-                                  if (!entry.useManualHours) return;
-                                  const value = parseFloat(e.target.value) || 0;
-                                  updateSchedule(
-                                    entry.dayOfWeek,
-                                    "totalHours",
-                                    Math.max(0, Math.min(24, value))
-                                  );
-                                }}
-                                className={cn(
-                                  "w-20 rounded-lg border px-2 py-1 text-sm text-center font-semibold outline-none transition",
-                                  entry.useManualHours
-                                    ? "border-input bg-background text-foreground focus:border-primary focus:ring-1 focus:ring-primary/20 cursor-text"
-                                    : "border-muted bg-muted/50 text-muted-foreground cursor-not-allowed"
-                                )}
-                              />
-                            </div>
-                          ) : !isSunday ? (
-                            <span className="text-sm text-muted-foreground italic">
-                              Straordinario
-                            </span>
-                          ) : null}
-                        </div>
-                      </div>
+                      ) : !isSunday ? (
+                        <span className="text-xs text-muted-foreground">
+                          Solo straordinario
+                        </span>
+                      ) : null}
                     </div>
-                  );
-                })}
-              </div>
-
-              {/* Weekly Total */}
-              <div className="rounded-lg border border-primary/20 bg-primary/5 p-4">
-                <div className="flex items-center justify-between">
-                  <span className="font-semibold text-foreground">
-                    Totale Ore Settimanali Base
-                  </span>
-                  <span className="text-xl font-bold text-primary">
-                    {schedules.reduce((sum, s) => sum + s.totalHours, 0).toFixed(1)}h
-                  </span>
+                  </div>
                 </div>
-              </div>
-            </div>
-          )}
-
-          {/* Messages */}
-          {error && (
-            <div className="mt-4 rounded-lg border border-destructive/50 bg-destructive/10 p-4">
-              <div className="flex items-center gap-2">
-                <AlertCircle className="h-5 w-5 text-destructive" />
-                <p className="text-sm font-medium text-destructive">{error}</p>
-              </div>
-            </div>
-          )}
-
-          {success && (
-            <div className="mt-4 rounded-lg border border-emerald-200 bg-emerald-50 dark:bg-emerald-900/20 dark:border-emerald-800 p-4">
-              <div className="flex items-center gap-2">
-                <CheckCircle className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
-                <p className="text-sm font-medium text-emerald-800 dark:text-emerald-300">
-                  {success}
-                </p>
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* Footer */}
-        <div className="border-t border-border bg-muted/30 px-6 py-4 flex-shrink-0">
-          <div className="flex gap-3 justify-end">
-            <button
-              type="button"
-              onClick={onClose}
-              className="rounded-lg border border-input bg-background px-4 py-2 text-sm font-semibold text-foreground transition hover:bg-muted cursor-pointer"
-            >
-              Annulla
-            </button>
-            <button
-              type="button"
-              onClick={handleSave}
-              disabled={isSaving || isLoading}
-              className="rounded-lg bg-primary px-6 py-2 text-sm font-semibold text-primary-foreground shadow-md transition hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50 cursor-pointer flex items-center gap-2"
-            >
-              {isSaving && <Loader2 className="h-4 w-4 animate-spin" />}
-              {isSaving ? "Salvataggio..." : "Salva Orari"}
-            </button>
+              );
+            })}
           </div>
+
+          <div className="flex items-center justify-between rounded-md border border-border bg-muted/40 p-3">
+            <span className="text-[13px] font-medium text-foreground">
+              Totale settimanale
+            </span>
+            <span className="text-base font-semibold tabular-nums tracking-tight text-foreground">
+              {weeklyTotal.toFixed(1)}h
+            </span>
+          </div>
+
+          {error && <Alert variant="error">{error}</Alert>}
+          {success && <Alert variant="success">{success}</Alert>}
         </div>
-      </div>
-    </div>
+      )}
+    </Dialog>
   );
 }

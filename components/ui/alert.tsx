@@ -17,22 +17,27 @@ export interface AlertProps extends HTMLAttributes<HTMLDivElement> {
   onDismiss?: () => void;
 }
 
+/*
+ * Driven by the semantic status tokens rather than raw Tailwind palette
+ * colours, so alerts stay legible in both themes and follow the same green /
+ * amber / red vocabulary as badges and calendar cells.
+ */
 const variantStyles: Record<AlertVariant, { container: string; icon: string }> = {
   error: {
-    container: "bg-destructive/10 border-destructive/20 text-destructive",
+    container: "border-destructive/25 bg-destructive-subtle text-destructive",
     icon: "text-destructive",
   },
   success: {
-    container: "bg-green-500/10 border-green-500/20 text-green-700 dark:text-green-400",
-    icon: "text-green-600 dark:text-green-400",
+    container: "border-success/25 bg-success-subtle text-success",
+    icon: "text-success",
   },
   warning: {
-    container: "bg-yellow-500/10 border-yellow-500/20 text-yellow-700 dark:text-yellow-400",
-    icon: "text-yellow-600 dark:text-yellow-400",
+    container: "border-warning/25 bg-warning-subtle text-warning",
+    icon: "text-warning",
   },
   info: {
-    container: "bg-blue-500/10 border-blue-500/20 text-blue-700 dark:text-blue-400",
-    icon: "text-blue-600 dark:text-blue-400",
+    container: "border-info/25 bg-info-subtle text-info",
+    icon: "text-info",
   },
 };
 
@@ -64,26 +69,26 @@ const Alert = forwardRef<HTMLDivElement, AlertProps>(
         ref={ref}
         role="alert"
         className={cn(
-          "rounded-lg border p-4",
+          "rounded-md border p-3.5",
           styles.container,
           className
         )}
         {...props}
       >
-        <div className="flex items-start gap-3">
-          <Icon className={cn("h-5 w-5 shrink-0 mt-0.5", styles.icon)} />
+        <div className="flex items-start gap-2.5">
+          <Icon className={cn("mt-0.5 size-4 shrink-0", styles.icon)} />
           <div className="flex-1 min-w-0">
             {title && (
-              <h5 className="font-medium mb-1">{title}</h5>
+              <h5 className="mb-0.5 text-sm font-semibold">{title}</h5>
             )}
-            <div className="text-sm">{children}</div>
+            <div className="text-[13px] leading-relaxed">{children}</div>
           </div>
           {dismissible && onDismiss && (
             <button
               type="button"
               onClick={onDismiss}
               className={cn(
-                "shrink-0 rounded-md p-1 transition-colors hover:bg-black/10 dark:hover:bg-white/10",
+                "shrink-0 cursor-pointer rounded-sm p-1 transition-colors hover:bg-foreground/10",
                 styles.icon
               )}
               aria-label="Chiudi"

@@ -2,11 +2,21 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { UserCog, Users as UsersIcon } from "lucide-react";
 import type { User } from "@/types/models";
-import { 
-  UserCog 
-} from "lucide-react";
-import { cn } from "@/lib/utils";
+import { Badge } from "@/components/ui/badge";
+import { Button, buttonClasses } from "@/components/ui/button";
+import { EmptyState } from "@/components/ui/empty-state";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+  TableToolbar,
+  TableWrapper,
+} from "@/components/ui/table";
 
 type UserAggregate = User & {
   regularHours: number;
@@ -18,116 +28,115 @@ type UserAggregate = User & {
 
 type AdminOverviewProps = {
   users: UserAggregate[];
+  /** Month the figures refer to, already formatted for display. */
+  periodLabel: string;
 };
 
-export default function AdminOverview({ users }: AdminOverviewProps) {
+/** Zero reads as absence of data, so it steps back instead of competing. */
+function Hours({ value, emphasis }: { value: number; emphasis?: boolean }) {
+  if (value === 0) {
+    return <span className="text-muted-foreground/50">—</span>;
+  }
+  return (
+    <span className={emphasis ? "font-medium text-foreground" : "text-foreground"}>
+      {value.toFixed(1)}
+      <span className="ml-0.5 text-xs text-muted-foreground">h</span>
+    </span>
+  );
+}
+
+export default function AdminOverview({ users, periodLabel }: AdminOverviewProps) {
   const router = useRouter();
 
   return (
-    <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-8 flex flex-col gap-8">
-      {/* Users Table */}
-      <div className="rounded-lg border border-border bg-card text-card-foreground shadow-sm overflow-hidden">
-        <div className="px-6 py-4 border-b border-border flex items-center justify-between">
-          <h2 className="text-lg font-semibold text-foreground">Utenti e Ore Lavorate</h2>
+    <TableWrapper>
+      <TableToolbar
+        title="Utenti e ore lavorate"
+        description={periodLabel}
+        actions={
           <Link
             href="/dashboard/users"
-            className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-primary-foreground bg-primary hover:bg-primary/90 transition-colors shadow-sm"
+            className={buttonClasses({ variant: "outline", size: "sm" })}
           >
-            <UserCog className="h-4 w-4 mr-2" />
-            Gestisci Utenti
+            <UserCog />
+            Gestisci utenti
           </Link>
-        </div>
+        }
+      />
 
-        <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-border">
-            <thead className="bg-muted/50">
-              <tr>
-                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                  Utente
-                </th>
-                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider hidden md:table-cell">
-                  Email
-                </th>
-                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider hidden md:table-cell">
-                  Ruolo
-                </th>
-                <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                  Ore Totali
-                </th>
-                <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                  Ore Straordinarie
-                </th>
-                <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                  Ore Perm/Ferie
-                </th>
-                <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                  Ore Malattia
-                </th>
-              </tr>
-            </thead>
-            <tbody className="bg-card divide-y divide-border">
-              {users.map((user) => {
-                const totalUserHours = user.regularHours + user.overtimeHours;
-                return (
-                  <tr 
-                    key={user.id} 
-                    onClick={() => router.push(`/dashboard/calendar?userId=${user.id}`)}
-                    className="hover:bg-muted/50 transition-colors cursor-pointer"
-                  >
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="flex items-center">
-                        <div className="relative flex-shrink-0 h-10 w-10 rounded-full bg-muted flex items-center justify-center overflow-hidden">
-                          <span className="text-muted-foreground font-semibold text-sm">
-                            {(user.name || user.email || "?").charAt(0).toUpperCase()}
-                          </span>
-                        </div>
-                        <div className="ml-4">
-                          <div className="text-sm font-medium text-foreground">
-                            {user.name || "N/A"}
-                          </div>
-                        </div>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap hidden md:table-cell">
-                      <div className="text-sm text-muted-foreground">{user.email}</div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap hidden md:table-cell">
-                      <span className={cn(
-                        "px-2 inline-flex text-xs leading-5 font-semibold rounded-full",
-                        user.role === "ADMIN"
-                          ? "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400"
-                          : "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400"
-                      )}>
-                        {user.role === "ADMIN" ? "Amministratore" : "Dipendente"}
+      {users.length === 0 ? (
+        <EmptyState
+          compact
+          icon={<UsersIcon />}
+          title="Nessun utente"
+          description="Aggiungi il primo membro del team per iniziare a raccogliere le ore."
+          action={
+            <Button size="sm" onClick={() => router.push("/dashboard/users")}>
+              Aggiungi utente
+            </Button>
+          }
+        />
+      ) : (
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Utente</TableHead>
+              <TableHead className="hidden md:table-cell">Ruolo</TableHead>
+              <TableHead numeric>Totali</TableHead>
+              <TableHead numeric>Straordinario</TableHead>
+              <TableHead numeric>Perm/Ferie</TableHead>
+              <TableHead numeric>Malattia</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {users.map((user) => {
+              const total = user.regularHours + user.overtimeHours;
+              const label = user.name || user.email;
+
+              return (
+                <TableRow
+                  key={user.id}
+                  interactive
+                  onClick={() => router.push(`/dashboard/calendar?userId=${user.id}`)}
+                >
+                  <TableCell>
+                    <div className="flex items-center gap-3">
+                      <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-semibold text-muted-foreground">
+                        {label.charAt(0).toUpperCase()}
                       </span>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-right">
-                      <div className="text-sm font-semibold text-foreground">
-                        {totalUserHours.toFixed(1)}h
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-right">
-                      <div className="text-sm text-orange-600 dark:text-orange-400 font-medium">
-                        {user.overtimeHours.toFixed(1)}h
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-right">
-                      <div className="text-sm text-purple-600 dark:text-purple-400 font-medium">
-                        {(user.permessoHours + user.vacationHours).toFixed(1)}h
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-right">
-                      <div className="text-sm text-red-600 dark:text-red-400 font-medium">
-                        {user.sicknessHours.toFixed(1)}h
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      </div>
-    </div>
+                      <span className="min-w-0">
+                        <span className="block truncate text-[13px] font-medium text-foreground">
+                          {user.name || "Senza nome"}
+                        </span>
+                        <span className="block truncate text-xs text-muted-foreground">
+                          {user.email}
+                        </span>
+                      </span>
+                    </div>
+                  </TableCell>
+                  <TableCell className="hidden md:table-cell">
+                    <Badge variant={user.role === "ADMIN" ? "primary" : "neutral"}>
+                      {user.role === "ADMIN" ? "Amministratore" : "Dipendente"}
+                    </Badge>
+                  </TableCell>
+                  <TableCell numeric>
+                    <Hours value={total} emphasis />
+                  </TableCell>
+                  <TableCell numeric>
+                    <Hours value={user.overtimeHours} />
+                  </TableCell>
+                  <TableCell numeric>
+                    <Hours value={user.permessoHours + user.vacationHours} />
+                  </TableCell>
+                  <TableCell numeric>
+                    <Hours value={user.sicknessHours} />
+                  </TableCell>
+                </TableRow>
+              );
+            })}
+          </TableBody>
+        </Table>
+      )}
+    </TableWrapper>
   );
 }

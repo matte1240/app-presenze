@@ -4,16 +4,22 @@ import { forwardRef, HTMLAttributes } from "react";
 export interface CardProps extends HTMLAttributes<HTMLDivElement> {
   /** Remove default padding */
   noPadding?: boolean;
+  /** Adds hover feedback for cards that behave as a single control. */
+  interactive?: boolean;
 }
 
 const Card = forwardRef<HTMLDivElement, CardProps>(
-  ({ className, noPadding = false, children, ...props }, ref) => {
+  ({ className, noPadding = false, interactive = false, children, ...props }, ref) => {
     return (
       <div
         ref={ref}
         className={cn(
-          "rounded-xl border border-border bg-card text-card-foreground shadow-sm",
-          !noPadding && "p-6",
+          // A hairline edge carries the surface; the shadow only hints depth.
+          "rounded-lg border border-border bg-card text-card-foreground shadow-elevation-1",
+          !noPadding && "p-5",
+          interactive &&
+            "cursor-pointer transition-[border-color,box-shadow] duration-200 " +
+              "ease-[var(--ease-out-quart)] hover:border-border hover:shadow-elevation-2",
           className
         )}
         {...props}
@@ -32,7 +38,7 @@ const CardHeader = forwardRef<HTMLDivElement, CardHeaderProps>(
     return (
       <div
         ref={ref}
-        className={cn("flex flex-col space-y-1.5", className)}
+        className={cn("flex flex-col space-y-1", className)}
         {...props}
       />
     );
@@ -47,7 +53,7 @@ const CardTitle = forwardRef<HTMLHeadingElement, CardTitleProps>(
     return (
       <h3
         ref={ref}
-        className={cn("text-lg font-semibold leading-none tracking-tight", className)}
+        className={cn("text-sm font-semibold leading-none tracking-tight", className)}
         {...props}
       />
     );
@@ -62,7 +68,7 @@ const CardDescription = forwardRef<HTMLParagraphElement, CardDescriptionProps>(
     return (
       <p
         ref={ref}
-        className={cn("text-sm text-muted-foreground", className)}
+        className={cn("text-[13px] leading-relaxed text-muted-foreground", className)}
         {...props}
       />
     );
@@ -86,7 +92,7 @@ const CardFooter = forwardRef<HTMLDivElement, CardFooterProps>(
     return (
       <div
         ref={ref}
-        className={cn("flex items-center pt-4", className)}
+        className={cn("flex items-center gap-2 pt-4", className)}
         {...props}
       />
     );

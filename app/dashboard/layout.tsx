@@ -1,5 +1,5 @@
 import { getAuthSession } from "@/lib/auth";
-import Navbar from "@/components/layout/navbar";
+import AppShell from "@/components/layout/app-shell";
 import ActivityTracker from "@/components/features/activity-tracker";
 
 export default async function DashboardLayout({
@@ -11,15 +11,15 @@ export default async function DashboardLayout({
   const session = (await getAuthSession())!;
 
   return (
-    <div className="min-h-screen bg-background">
+    <>
       <ActivityTracker />
-      <Navbar
+      <AppShell
         userRole={session.user.role}
         userName={session.user.name}
         userEmail={session.user.email}
-        userImage={session.user.image}
-      />
-      <main>{children}</main>
-    </div>
+      >
+        {children}
+      </AppShell>
+    </>
   );
 }
