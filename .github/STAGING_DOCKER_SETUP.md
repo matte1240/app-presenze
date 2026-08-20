@@ -29,7 +29,7 @@ Assicurati che i seguenti secrets siano configurati nel repository GitHub:
 - `STAGING_SSH_KEY` - Chiave privata SSH per il server staging
 - `STAGING_IP` - IP del server staging
 - `STAGING_USER` - Username per il server staging
-- `STAGING_DATABASE_URL` - Connection string PostgreSQL
+- `STAGING_DATABASE_URL` - Percorso del file SQLite (es. `file:/app/data/app.db`)
 - `STAGING_NEXTAUTH_SECRET` - Secret per NextAuth
 - `STAGING_NEXTAUTH_URL` - URL pubblico dell'app staging
 - `EMAIL_HOST` - SMTP host
@@ -133,7 +133,7 @@ docker-compose up -d
 ### Errore: Container non si avvia
 - Controlla i logs: `docker-compose logs app`
 - Verifica che le variabili d'ambiente nel `.env` siano corrette
-- Verifica che PostgreSQL sia raggiungibile: `docker-compose logs postgres`
+- Verifica che il volume del database sia montato: `docker compose exec app ls -la /app/data`
 
 ### Container in loop di restart
 - Probabilmente un errore nell'applicazione
@@ -146,7 +146,7 @@ docker-compose up -d
 |---------|---------------|----------------|
 | Build | Sul server staging | Su GitHub Actions |
 | Dipendenze | npm install sul server | Già nell'immagine |
-| Database | Esterno | Container locale (postgres) |
+| Database | Esterno | File SQLite sul volume `app_data` |
 | Prisma | Generate + migrate sul server | Migrate automatico all'avvio |
 | Logs | `pm2 logs` | `docker-compose logs` |
 | Restart | `pm2 restart` | `docker-compose restart` |
@@ -156,7 +156,7 @@ docker-compose up -d
 
 1. **Consistenza**: Stesso ambiente in dev, staging e production
 2. **Velocità**: Build su GitHub Actions invece che sul server
-3. **Isolamento**: Ogni ambiente ha il proprio PostgreSQL containerizzato
+3. **Isolamento**: Ogni ambiente ha il proprio file SQLite su volume dedicato
 4. **Portabilità**: Facile spostare su altri server
 5. **Rollback**: Semplice tornare a versioni precedenti
 6. **Cache**: Docker layer caching accelera i build successivi

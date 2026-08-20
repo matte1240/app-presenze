@@ -1,37 +1,19 @@
 /**
- * Data transformation utilities for converting Prisma types to JSON-safe types
+ * Data transformation utilities for converting Prisma rows to JSON-safe types
  */
 
-import type { Prisma } from "@/lib/generated/prisma/client";
-
-type Decimal = Prisma.Decimal;
-
-/**
- * Convert Prisma Decimal to number
- * Safe for JSON serialization
- */
-export function decimalToNumber(decimal: Decimal | null | undefined): number {
-  if (decimal === null || decimal === undefined) {
-    return 0;
-  }
-  return parseFloat(decimal.toString());
-}
-
-/**
- * Convert a TimeEntry from Prisma to a plain object
- * Handles Decimal conversions and date formatting
- */
-export function serializeTimeEntry<T extends {
+/** Shape of the numeric + date fields a TimeEntry row exposes to the API layer. */
+type TimeEntryRow = {
   id: string;
   userId: string;
   workDate: Date;
-  hoursWorked: Decimal;
-  overtimeHours: Decimal;
-  permessoHours: Decimal;
-  sicknessHours: Decimal;
-  vacationHours: Decimal;
-  permesso104Hours: Decimal;
-  paternityHours: Decimal;
+  hoursWorked: number;
+  overtimeHours: number;
+  permessoHours: number;
+  sicknessHours: number;
+  vacationHours: number;
+  permesso104Hours: number;
+  paternityHours: number;
   morningStart: string | null;
   morningEnd: string | null;
   afternoonStart: string | null;
@@ -40,18 +22,24 @@ export function serializeTimeEntry<T extends {
   notes: string | null;
   createdAt: Date;
   updatedAt: Date;
-}>(entry: T) {
+};
+
+/**
+ * Convert a TimeEntry from Prisma to a plain object.
+ * Normalises dates: workDate becomes YYYY-MM-DD, timestamps become ISO strings.
+ */
+export function serializeTimeEntry<T extends TimeEntryRow>(entry: T) {
   return {
     id: entry.id,
     userId: entry.userId,
     workDate: entry.workDate.toISOString().split('T')[0], // Return only date part (YYYY-MM-DD)
-    hoursWorked: decimalToNumber(entry.hoursWorked),
-    overtimeHours: decimalToNumber(entry.overtimeHours),
-    permessoHours: decimalToNumber(entry.permessoHours),
-    sicknessHours: decimalToNumber(entry.sicknessHours),
-    vacationHours: decimalToNumber(entry.vacationHours),
-    permesso104Hours: decimalToNumber(entry.permesso104Hours),
-    paternityHours: decimalToNumber(entry.paternityHours),
+    hoursWorked: entry.hoursWorked,
+    overtimeHours: entry.overtimeHours,
+    permessoHours: entry.permessoHours,
+    sicknessHours: entry.sicknessHours,
+    vacationHours: entry.vacationHours,
+    permesso104Hours: entry.permesso104Hours,
+    paternityHours: entry.paternityHours,
     morningStart: entry.morningStart,
     morningEnd: entry.morningEnd,
     afternoonStart: entry.afternoonStart,
@@ -66,25 +54,6 @@ export function serializeTimeEntry<T extends {
 /**
  * Batch convert multiple time entries
  */
-export function serializeTimeEntries<T extends {
-  id: string;
-  userId: string;
-  workDate: Date;
-  hoursWorked: Decimal;
-  overtimeHours: Decimal;
-  permessoHours: Decimal;
-  sicknessHours: Decimal;
-  vacationHours: Decimal;
-  permesso104Hours: Decimal;
-  paternityHours: Decimal;
-  morningStart: string | null;
-  morningEnd: string | null;
-  afternoonStart: string | null;
-  afternoonEnd: string | null;
-  medicalCertificate: string | null;
-  notes: string | null;
-  createdAt: Date;
-  updatedAt: Date;
-}>(entries: T[]) {
+export function serializeTimeEntries<T extends TimeEntryRow>(entries: T[]) {
   return entries.map(serializeTimeEntry);
 }

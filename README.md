@@ -1,6 +1,6 @@
 # 🕐 Presenze — Time & Attendance Tracker
 
-A modern, **white-label** full-stack time tracking application built with **Next.js 16**, **Prisma**, and **PostgreSQL**. Manage employee work hours, track vacation and sick days, handle leave requests, and generate comprehensive reports—all with a clean, responsive UI.
+A modern, **white-label** full-stack time tracking application built with **Next.js 16**, **Prisma**, and **SQLite**. Manage employee work hours, track vacation and sick days, handle leave requests, and generate comprehensive reports—all with a clean, responsive UI.
 
 Every customer-facing element—name, logo, colors, favicons, PWA identity and email design—is configuration rather than code, so the product can be rebranded and resold without touching a component. See the **[White-Label Guide](docs/WHITE_LABEL.md)**.
 
@@ -63,16 +63,10 @@ The application will be available at [http://localhost:3000](http://localhost:30
 
 ### Running Locally (Development)
 
-If you prefer to run the Next.js app on your host machine but keep the database in Docker:
+The database is an embedded SQLite file, so there is no database service to start —
+`prisma migrate dev` creates `data/app.db` on first run.
 
-1. **Start the Database**
-   You can use the docker-compose service just for the DB, or run a local Postgres instance.
-   ```bash
-   # Start only the db service
-   docker compose up -d db
-   ```
-
-2. **Install Dependencies**
+1. **Install Dependencies**
    ```bash
    npm install
    ```
@@ -108,7 +102,7 @@ The application requires several environment variables to function. Create a `.e
 
 ```env
 # Database
-DATABASE_URL="postgresql://user:password@localhost:5432/employeedb"
+DATABASE_URL="file:./data/app.db"
 
 # NextAuth
 NEXTAUTH_URL="http://localhost:3000"

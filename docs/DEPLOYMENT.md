@@ -13,7 +13,7 @@ This guide covers the complete deployment lifecycle, from Docker setup to produc
 
 The application is containerized using Docker with:
 - **Next.js 16** (Production build)
-- **PostgreSQL 16** (Database)
+- **SQLite** (embedded database file)
 - **Multi-stage build** for optimized images
 - **Health checks** & **Persistent volumes**
 
@@ -133,7 +133,7 @@ docker logs <container-name>
 # Build and run the container
 docker build -t employee-app .
 docker run -p 3000:3000 \
-  -e DATABASE_URL="your-db-url" \
+  -e DATABASE_URL="file:/app/data/app.db" \
   -e NEXTAUTH_SECRET="your-secret" \
   -e NEXTAUTH_URL="http://localhost:3000" \
   employee-app
@@ -188,32 +188,35 @@ curl https://your-domain.com/sw.js
 
 ---
 
-### Database Connection Fails
+### Database Cannot Be Opened
 
-**Error:** `ECONNREFUSED` or `Connection timeout`
+**Error:** `SQLITE_CANTOPEN` or `unable to open database file`
+
+The database is an embedded SQLite file — there is no database server to reach,
+so the cause is always the path or its permissions.
 
 **Solutions:**
 
-1. **Check docker-compose service name:**
-   ```yaml
-   # In docker-compose.yml, DB service is named 'db'
-   services:
-     db:
-       image: postgres:16
-   ```
-
-2. **Update DATABASE_URL:**
+1. **Check DATABASE_URL points at a writable path:**
    ```env
-   # When running in Docker network
-   DATABASE_URL="postgresql://user:password@db:5432/dbname"
-   #                                         ^^
-   #                                    Service name, not 'localhost'
+   # In Docker: absolute path on the app_data volume
+   DATABASE_URL="file:/app/data/app.db"
+
+   # Locally: relative to the project root
+   DATABASE_URL="file:./data/app.db"
    ```
 
-3. **Verify database is running:**
+2. **Verify the volume is mounted and owned by the app user:**
+   ```bash
+   docker compose exec app ls -la /app/data
+   # app.db (plus app.db-wal / app.db-shm) owned by nextjs:nodejs
+   ```
+
+3. **Make sure only one instance is running:**
    ```bash
    docker compose ps
-   # Should show 'db' service as 'Up'
+   # A single 'app' container. The database file cannot be shared between
+   # instances, so the service must not be scaled horizontally.
    ```
 
 ---

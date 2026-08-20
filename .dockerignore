@@ -45,6 +45,7 @@ docs/
 public/uploads/
 
 # Database
+data
 db_data
 *.db
 *.db-*

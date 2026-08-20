@@ -1,10 +1,10 @@
-import { exec } from "child_process";
-import { promisify } from "util";
 import path from "path";
 import fs from "fs";
 import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
+import prisma from "@/lib/prisma";
 
-const execAsync = promisify(exec);
+/** Extension of a backup file: a plain SQLite database, not a SQL dump. */
+export const BACKUP_EXTENSION = ".db";
 
 function getS3Client(): S3Client | null {
   const bucket = process.env.BACKUP_S3_BUCKET;
@@ -46,7 +46,7 @@ export async function uploadBackupToS3(filePath: string, filename: string): Prom
     Bucket: bucket,
     Key: key,
     Body: fileContent,
-    ContentType: "application/sql",
+    ContentType: "application/x-sqlite3",
   }));
 
   const s3Uri = `s3://${bucket}/${key}`;
@@ -62,37 +62,28 @@ export async function performBackup() {
   try {
     // Generate backup filename with timestamp
     const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
-    const filename = `backup-${timestamp}.sql`;
-    
+    const filename = `backup-${timestamp}${BACKUP_EXTENSION}`;
+
     // Ensure backups directory exists
     const backupsDir = path.join(process.cwd(), "backups", "database");
     if (!fs.existsSync(backupsDir)) {
       fs.mkdirSync(backupsDir, { recursive: true });
     }
-    
+
     const backupPath = path.join(backupsDir, filename);
 
-    // Get database URL from environment
-    const databaseUrl = process.env.DATABASE_URL;
-    if (!databaseUrl) {
-      throw new Error("DATABASE_URL not configured");
-    }
-
-    // Remove query parameters that pg_dump doesn't support
-    const cleanUrl = databaseUrl.split('?')[0];
-
-    // Use pg_dump with connection string (format: plain SQL)
-    // --clean adds DROP commands before CREATE to allow clean restore
-    // --if-exists prevents errors if objects don't exist during DROP
-    const command = `pg_dump "${cleanUrl}" -F p -b -v --clean --if-exists -f "${backupPath}"`;
-
     console.log(`Starting backup: ${filename}`);
-    const { stderr } = await execAsync(command);
-    
-    // pg_dump writes verbose output to stderr, so we check if it failed
-    // If the file exists and has size > 0, we assume success mostly
+
+    // VACUUM INTO writes a consistent, defragmented copy of the database even
+    // while other statements are running, so no external tooling and no
+    // downtime are involved. It refuses to overwrite, hence the unique
+    // timestamped name above.
+    await prisma.$executeRawUnsafe(
+      `VACUUM INTO '${backupPath.replace(/'/g, "''")}'`
+    );
+
     if (!fs.existsSync(backupPath) || fs.statSync(backupPath).size === 0) {
-        throw new Error(`Backup failed: File not created or empty. Stderr: ${stderr}`);
+      throw new Error("Backup failed: file not created or empty");
     }
 
     console.log(`Backup completed successfully: ${filename}`);

@@ -113,7 +113,7 @@ export default function SetupForm() {
             Restore from Backup
           </h3>
           <p className="mb-6 text-sm text-muted-foreground">
-            Upload a backup file (.sql) to restore your database. This will replace all current data.
+            Upload a backup file (.db) to restore your database. This will replace all current data and restart the application.
           </p>
 
           <div className="space-y-4">
@@ -131,13 +131,13 @@ export default function SetupForm() {
                     <p className="mb-2 text-sm text-muted-foreground">
                       <span className="font-semibold">Click to upload</span> or drag and drop
                     </p>
-                    <p className="text-xs text-muted-foreground">SQL file only</p>
+                    <p className="text-xs text-muted-foreground">SQLite .db file only</p>
                   </div>
                   <input
                     id="backup-file"
                     name="backup-file"
                     type="file"
-                    accept=".sql"
+                    accept=".db"
                     required
                     onChange={(e) => setRestoreFile(e.target.files?.[0] || null)}
                     className="hidden"

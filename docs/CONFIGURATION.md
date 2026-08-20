@@ -24,7 +24,7 @@ The application is configured via `.env` file. Two example files are provided:
 
 | Variable | Description | Required | Default |
 |----------|-------------|----------|---------|
-| `DATABASE_URL` | PostgreSQL connection string | ✅ Yes | - |
+| `DATABASE_URL` | SQLite database file, e.g. `file:./data/app.db` | ✅ Yes | - |
 | `NEXTAUTH_SECRET` | Secret for session encryption | ✅ Yes | Generate with `openssl rand -base64 32` |
 | `NEXTAUTH_URL` | URL of the application | ✅ Yes | `http://localhost:3000` |
 | `NODE_ENV` | Environment mode | ✅ Yes | `development` or `production` |
@@ -136,7 +136,7 @@ Sync approved leave requests to a shared Google Calendar automatically.
 
 ## 💾 Automated Backup System
 
-The application includes a built-in automated PostgreSQL backup system with email notifications.
+The application includes a built-in automated SQLite backup system with email notifications.
 
 ### How It Works
 
@@ -168,17 +168,18 @@ The application includes a built-in automated PostgreSQL backup system with emai
 ### Manual Operations
 
 #### Create Backup
+Use **Dashboard → Gestione Server → Crea Backup**, or call the API directly:
 ```bash
-# From the host machine or within the app container
-npm run backup:db
+curl -X POST http://localhost:3000/api/admin/backups   # admin session required
 ```
+The backup is a `VACUUM INTO` snapshot: a plain SQLite database file, consistent
+even while the app is serving requests.
 
 #### Restore Backup
-```bash
-npm run restore:db backups/database/backup-2026-02-12T19-45-51-280Z.sql
-```
+Upload a `.db` backup from **Dashboard → Gestione Server → Ripristina Database**.
 
-**⚠️ Warning**: This will overwrite the current database!
+**⚠️ Warning**: this overwrites the current database and restarts the
+application so it reopens the restored file.
 
 #### List Backups
 ```bash
@@ -218,7 +219,7 @@ For GitHub Actions (CI/CD), configure the following secrets in **Settings > Secr
 - `EMAIL_FROM` - From email address
 
 ### Deployment Secrets (Staging)
-- `STAGING_DATABASE_URL` - PostgreSQL connection string
+- `STAGING_DATABASE_URL` - SQLite file path, e.g. `file:/app/data/app.db`
 - `STAGING_NEXTAUTH_SECRET` - Session encryption key
 - `STAGING_NEXTAUTH_URL` - Application URL
 - `STAGING_SSH_KEY` - Private SSH key for deployment

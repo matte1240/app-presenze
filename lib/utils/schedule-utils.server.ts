@@ -135,12 +135,19 @@ export async function createDefaultSchedulesForUser(
     isWorkingDay: true,
   }));
 
-  // Use createMany for efficiency
+  // The SQLite connector has no `skipDuplicates`, so idempotency comes from an
+  // upsert per day on the @@unique([userId, dayOfWeek]) key. Five rows, so the
+  // extra round-trips are irrelevant next to staying safe under a race.
   try {
-    await prisma.workingSchedule.createMany({
-      data: scheduleData,
-      skipDuplicates: true,
-    });
+    await prisma.$transaction(
+      scheduleData.map((data) =>
+        prisma.workingSchedule.upsert({
+          where: { userId_dayOfWeek: { userId, dayOfWeek: data.dayOfWeek } },
+          create: data,
+          update: {},
+        })
+      )
+    );
   } catch (error) {
     console.error(`Failed to create default schedules for user ${userId}:`, error);
     // Don't throw, just log. This prevents app crashes during race conditions

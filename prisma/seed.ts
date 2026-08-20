@@ -1,9 +1,9 @@
 import "dotenv/config";
 import { PrismaClient } from "../lib/generated/prisma/client.js";
-import { PrismaPg } from "@prisma/adapter-pg";
+import { PrismaBetterSqlite3 } from "@prisma/adapter-better-sqlite3";
 import { hash } from "bcryptjs";
 
-const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL! });
+const adapter = new PrismaBetterSqlite3({ url: process.env.DATABASE_URL! });
 const prisma = new PrismaClient({ adapter });
 
 type SeedRole = "EMPLOYEE" | "ADMIN";
@@ -38,7 +38,6 @@ async function ensureUserSchedules(userId: string) {
 
   await prisma.workingSchedule.createMany({
     data: scheduleData,
-    skipDuplicates: true,
   });
 
   console.log(`✓ Created default working schedules for user ${userId}`);

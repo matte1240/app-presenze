@@ -6,6 +6,15 @@
 // User roles
 export type UserRole = "EMPLOYEE" | "ADMIN";
 
+/**
+ * Narrow a role coming from the database to UserRole.
+ * SQLite has no enum type, so Prisma types `User.role` as a plain string;
+ * anything unrecognised falls back to the least-privileged role.
+ */
+export function toUserRole(role: string): UserRole {
+  return role === "ADMIN" ? "ADMIN" : "EMPLOYEE";
+}
+
 // Base user type
 export type User = {
   id: string;

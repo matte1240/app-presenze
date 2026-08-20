@@ -9,7 +9,8 @@ export default defineConfig({
   },
   datasource: {
     // Use process.env with a fallback so `prisma generate` works in CI
-    // without DATABASE_URL (it doesn't need a real connection).
-    url: process.env.DATABASE_URL ?? "",
+    // without DATABASE_URL. The SQLite connector rejects an empty URL, so the
+    // fallback points at the default local database file.
+    url: process.env.DATABASE_URL ?? "file:./data/app.db",
   },
 });

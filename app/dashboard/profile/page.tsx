@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { getAuthSession } from "@/lib/auth";
 import prisma from "@/lib/prisma";
 import EmployeeProfile from "@/components/dashboard/employee/profile";
+import { toUserRole } from "@/types/models";
 
 export default async function ProfilePage() {
   // Auth enforced by proxy.ts — session is guaranteed non-null here
@@ -29,7 +30,7 @@ export default async function ProfilePage() {
         id: user.id,
         name: user.name,
         email: user.email,
-        role: user.role,
+        role: toUserRole(user.role),
         image: user.image,
         createdAt: user.createdAt,
       }}

@@ -13,6 +13,12 @@ COPY prisma.config.ts ./
 # Install only production dependencies
 RUN npm ci --omit=dev && npm cache clean --force
 
+# better-sqlite3 ships prebuilt binaries for every platform it supports (~16MB).
+# Only Linux can ever run here; dropping macOS and Windows saves ~8MB while
+# keeping both the glibc and musl bindings, so the base image can change freely.
+RUN find node_modules/better-sqlite3/prebuilds -type f \
+      \( -name 'darwin-*' -o -name 'win32-*' \) -delete
+
 # Stage 2: Builder
 FROM node:25-alpine AS builder
 WORKDIR /app
@@ -38,8 +44,10 @@ RUN npm run build
 FROM node:25-alpine AS runner
 WORKDIR /app
 
-# Install PostgreSQL client tools for backup/restore
-RUN apk add --no-cache postgresql16-client openssl libc6-compat su-exec
+# openssl and libc6-compat are needed by the Prisma CLI (migrate deploy) on
+# Alpine; su-exec drops privileges in the entrypoint. The database is an
+# in-process SQLite file, so no database client tooling is required.
+RUN apk add --no-cache openssl libc6-compat su-exec
 
 # Set to production environment
 ENV NODE_ENV=production
@@ -68,9 +76,9 @@ COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 COPY --from=builder --chown=nextjs:nodejs /app/prisma ./prisma
 COPY --from=builder --chown=nextjs:nodejs /app/prisma.config.ts ./prisma.config.ts
 
-# Create directories for logs and backups
-RUN mkdir -p /app/logs /app/backups/database && \
-    chown -R nextjs:nodejs /app/logs /app/backups
+# Create directories for the SQLite database, logs and backups
+RUN mkdir -p /app/data /app/logs /app/backups/database && \
+    chown -R nextjs:nodejs /app/data /app/logs /app/backups
 
 # Entrypoint runs as root to fix volume permissions, then drops to nextjs
 # USER nextjs  -- handled by entrypoint via su-exec

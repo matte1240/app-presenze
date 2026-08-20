@@ -5,7 +5,6 @@ import ExcelJS from "exceljs";
 import { getRequiredSession, isAdmin } from "@/lib/api-middleware";
 import { badRequestResponse, forbiddenResponse, handleError } from "@/lib/api-responses";
 import { auditAdmin } from "@/lib/audit-log";
-import { decimalToNumber } from "@/lib/utils/serialization";
 import { getBranding } from "@/lib/branding";
 
 const exportSchema = z.object({
@@ -163,13 +162,13 @@ export async function POST(request: Request) {
         let totalPaternity = 0;
 
         entries.forEach((entry) => {
-          const hoursWorked = decimalToNumber(entry.hoursWorked);
-          const overtime = decimalToNumber(entry.overtimeHours);
-          const permessoHours = decimalToNumber(entry.permessoHours);
-          const vacationHours = decimalToNumber(entry.vacationHours);
-          const sicknessHours = decimalToNumber(entry.sicknessHours);
-          const permesso104Hours = decimalToNumber(entry.permesso104Hours || 0);
-          const paternityHours = decimalToNumber(entry.paternityHours || 0);
+          const hoursWorked = entry.hoursWorked;
+          const overtime = entry.overtimeHours;
+          const permessoHours = entry.permessoHours;
+          const vacationHours = entry.vacationHours;
+          const sicknessHours = entry.sicknessHours;
+          const permesso104Hours = entry.permesso104Hours;
+          const paternityHours = entry.paternityHours;
 
           totalHoursWorked += hoursWorked;
           totalOvertime += overtime;
@@ -316,13 +315,13 @@ export async function POST(request: Request) {
       let totalPaternitySum = 0;
 
       entries.forEach((entry) => {
-        const hoursWorked = decimalToNumber(entry.hoursWorked);
-        const overtime = decimalToNumber(entry.overtimeHours);
-        const permessoHours = decimalToNumber(entry.permessoHours);
-        const sicknessHours = decimalToNumber(entry.sicknessHours);
-        const vacationHours = decimalToNumber(entry.vacationHours);
-        const permesso104Hours = decimalToNumber(entry.permesso104Hours);
-        const paternityHours = decimalToNumber(entry.paternityHours);
+        const hoursWorked = entry.hoursWorked;
+        const overtime = entry.overtimeHours;
+        const permessoHours = entry.permessoHours;
+        const sicknessHours = entry.sicknessHours;
+        const vacationHours = entry.vacationHours;
+        const permesso104Hours = entry.permesso104Hours;
+        const paternityHours = entry.paternityHours;
         const permFerieHours = permessoHours + vacationHours;
         const totalHours = hoursWorked + overtime;
 
