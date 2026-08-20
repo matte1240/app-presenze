@@ -19,8 +19,8 @@ Vai su **GitHub Repository** → **Settings** → **Secrets and variables** → 
    - Esempio: `ubuntu` o `admin`
 
 4. **PRODUCTION_DATABASE_URL**
-   - URL di connessione al database PostgreSQL di produzione
-   - Formato: `postgresql://username:password@host:5432/database_name?schema=public`
+   - Percorso del file SQLite di produzione
+   - Formato: `file:/app/data/app.db` (path assoluto sul volume `app_data`)
 
 5. **PRODUCTION_NEXTAUTH_SECRET**
    - Secret per NextAuth (deve essere diverso da staging)
@@ -123,7 +123,7 @@ docker compose up -d --build
 
 Prima di deployare in produzione:
 
-- [ ] Database PostgreSQL di produzione pronto e accessibile
+- [ ] Volume `app_data` presente e scrivibile (il database SQLite viene creato al primo avvio)
 - [ ] Secrets configurati su GitHub
 - [ ] SSH keys configurate correttamente
 - [ ] Testato su staging
@@ -152,7 +152,7 @@ Dopo il deploy, verifica:
 1. **GitHub Actions**: Check che il workflow sia completato con successo
 2. **Docker Status**: `docker compose ps` deve mostrare containers `Up`
 3. **Logs**: `docker compose logs app --tail 50` per vedere eventuali errori
-4. **Health Check**: `docker compose ps` verifica status `healthy` per postgres
+4. **Health Check**: `docker compose ps` verifica status `healthy` per il servizio `app`
 5. **URL Pubblico**: Testa l'applicazione all'URL di produzione
 6. **Database**: Verifica che le migrations siano applicate correttamente
 

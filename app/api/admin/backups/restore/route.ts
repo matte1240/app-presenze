@@ -1,14 +1,22 @@
 import { NextRequest, NextResponse } from "next/server";
-import { exec } from "child_process";
-import { promisify } from "util";
-import { writeFile, unlink } from "fs/promises";
-import fs from "fs";
-import path from "path";
-import prisma from "@/lib/prisma";
+import { rename, unlink, writeFile } from "fs/promises";
+import prisma, { getDatabaseFilePath } from "@/lib/prisma";
+import { BACKUP_EXTENSION } from "@/lib/db-backup";
 import { getRequiredSession } from "@/lib/api-middleware";
 import { auditAdmin } from "@/lib/audit-log";
 
-const execAsync = promisify(exec);
+export const runtime = "nodejs";
+
+/** Every SQLite database starts with this 16-byte header. */
+const SQLITE_MAGIC = Buffer.from("SQLite format 3\0", "utf8");
+
+async function removeIfPresent(filePath: string) {
+  try {
+    await unlink(filePath);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+  }
+}
 
 export async function POST(req: NextRequest) {
   try {
@@ -32,42 +40,49 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Create temp file
-    const bytes = await file.arrayBuffer();
-    const buffer = Buffer.from(bytes);
-    const tempPath = path.join(process.cwd(), "backups", `restore-${Date.now()}.sql`);
-    
-    // Ensure backups directory exists
-    const backupsDir = path.dirname(tempPath);
-    if (!fs.existsSync(backupsDir)) {
-      await fs.promises.mkdir(backupsDir, { recursive: true });
+    const buffer = Buffer.from(await file.arrayBuffer());
+
+    // Refuse anything that is not a SQLite database before touching the live
+    // file: a bad upload would otherwise leave the app with an unopenable DB.
+    if (!buffer.subarray(0, SQLITE_MAGIC.length).equals(SQLITE_MAGIC)) {
+      return NextResponse.json(
+        { error: `Invalid backup file: expected a SQLite database (${BACKUP_EXTENSION})` },
+        { status: 400 }
+      );
     }
 
-    await writeFile(tempPath, buffer);
+    const dbPath = getDatabaseFilePath();
+    const stagingPath = `${dbPath}.restore`;
 
-    // Database connection details from env
-    const dbUrl = process.env.DATABASE_URL;
-    if (!dbUrl) {
-      throw new Error("DATABASE_URL not configured");
-    }
-
-    // Remove query parameters (psql doesn't need them)
-    const cleanUrl = dbUrl.split('?')[0];
+    // Stage the upload next to the database so the swap below is a rename on
+    // the same filesystem, i.e. atomic.
+    await writeFile(stagingPath, buffer);
 
     console.log("Restoring database...");
-    
-    // Use psql with connection string directly (similar to pg_dump approach)
-    const command = `psql "${cleanUrl}" -f "${tempPath}"`;
 
-    await execAsync(command);
+    // Close the pool before swapping the file out from under it.
+    await prisma.$disconnect();
 
-    // Clean up temp file
-    await unlink(tempPath);
+    await rename(stagingPath, dbPath);
+
+    // The WAL and shared-memory sidecars belong to the replaced database; left
+    // behind they would be replayed on top of the restored one.
+    await removeIfPresent(`${dbPath}-wal`);
+    await removeIfPresent(`${dbPath}-shm`);
 
     await auditAdmin.backupRestored("system");
 
+    // A live better-sqlite3 handle cannot be re-pointed at the new file, so the
+    // process exits and the supervisor (docker compose `restart: unless-stopped`)
+    // brings it back up against the restored database.
+    setTimeout(() => process.exit(0), 500);
+
     return NextResponse.json(
-      { success: true, message: "Database restored successfully" },
+      {
+        success: true,
+        message: "Database restored successfully. The application is restarting.",
+        restarting: true,
+      },
       { status: 200 }
     );
   } catch (error) {

@@ -30,7 +30,7 @@ Per far funzionare il workflow di deploy staging, devi aggiungere questo secret 
 
 Questi secrets sono già presenti e configurati correttamente:
 
-- [x] `STAGING_DATABASE_URL` - Connection string PostgreSQL staging
+- [x] `STAGING_DATABASE_URL` - Percorso del file SQLite di staging (es. `file:/app/data/app.db`)
 - [x] `STAGING_IP` - IP del server staging
 - [x] `STAGING_NEXTAUTH_SECRET` - Secret NextAuth per staging
 - [x] `STAGING_NEXTAUTH_URL` - URL pubblico app staging

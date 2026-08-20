@@ -29,15 +29,13 @@ npm install
 cp .env.example .env
 # Edit .env with your local database URL
 
-# 4. Start database (Docker)
-docker compose up postgres -d
-
-# 5. Run migrations, generate client & seed data
+# 4. Run migrations, generate client & seed data
+#    (SQLite: the database file is created automatically under data/)
 npx prisma migrate dev
 npx prisma generate
 npx prisma db seed
 
-# 6. Start dev server
+# 5. Start dev server
 npm run dev
 ```
 

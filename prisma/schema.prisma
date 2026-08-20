@@ -4,7 +4,7 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
+  provider = "sqlite"
 }
 
 model User {
@@ -12,7 +12,7 @@ model User {
   name              String?
   email             String            @unique
   passwordHash      String
-  role              Role              @default(EMPLOYEE)
+  role              String            @default("EMPLOYEE")
   image             String?
   emailVerified     DateTime?
   createdAt         DateTime          @default(now())
@@ -36,7 +36,7 @@ model WorkingSchedule {
   morningEnd     String?
   afternoonStart String?
   afternoonEnd   String?
-  totalHours     Decimal  @default(0)
+  totalHours     Float    @default(0)
   useManualHours Boolean  @default(false)
   isWorkingDay   Boolean  @default(true)
   createdAt      DateTime @default(now())
@@ -51,9 +51,9 @@ model TimeEntry {
   id                 String   @id @default(cuid())
   userId             String
   workDate           DateTime
-  hoursWorked        Decimal
-  overtimeHours      Decimal  @default(0)
-  permessoHours      Decimal  @default(0)
+  hoursWorked        Float
+  overtimeHours      Float    @default(0)
+  permessoHours      Float    @default(0)
   morningStart       String?
   morningEnd         String?
   afternoonStart     String?
@@ -62,10 +62,10 @@ model TimeEntry {
   createdAt          DateTime @default(now())
   updatedAt          DateTime @updatedAt
   medicalCertificate String?
-  sicknessHours      Decimal  @default(0)
-  vacationHours      Decimal  @default(0)
-  paternityHours     Decimal  @default(0)
-  permesso104Hours   Decimal  @default(0)
+  sicknessHours      Float    @default(0)
+  vacationHours      Float    @default(0)
+  paternityHours     Float    @default(0)
+  permesso104Hours   Float    @default(0)
   user               User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, workDate], map: "user_workdate_unique")
@@ -108,37 +108,20 @@ model VerificationToken {
 }
 
 model LeaveRequest {
-  id        String        @id @default(cuid())
+  id        String   @id @default(cuid())
   userId    String
   startDate DateTime
   endDate   DateTime
-  type      LeaveType
-  status    RequestStatus @default(PENDING)
+  type      String
+  status    String   @default("PENDING")
   reason    String?
-  createdAt DateTime      @default(now())
-  updatedAt DateTime      @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
   endTime   String?
   startTime String?
-  user      User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, status], map: "user_status_idx")
   @@index([status, createdAt], map: "status_created_idx")
   @@index([userId, startDate, endDate], map: "user_dates_idx")
-}
-
-enum Role {
-  EMPLOYEE
-  ADMIN
-}
-
-enum RequestStatus {
-  PENDING
-  APPROVED
-  REJECTED
-}
-
-enum LeaveType {
-  VACATION
-  SICKNESS
-  PERMESSO
 }

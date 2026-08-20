@@ -1,6 +1,3 @@
-import type { Prisma } from "@/lib/generated/prisma/client";
-
-type Decimal = Prisma.Decimal;
 import { z } from "zod";
 import prisma from "@/lib/prisma";
 import { isHoliday } from "@/lib/utils/holiday-utils";
@@ -43,13 +40,13 @@ type RawEntry = {
   id: string;
   userId: string;
   workDate: Date;
-  hoursWorked: Decimal;
-  overtimeHours: Decimal;
-  permessoHours: Decimal;
-  sicknessHours: Decimal;
-  vacationHours: Decimal;
-  permesso104Hours: Decimal;
-  paternityHours: Decimal;
+  hoursWorked: number;
+  overtimeHours: number;
+  permessoHours: number;
+  sicknessHours: number;
+  vacationHours: number;
+  permesso104Hours: number;
+  paternityHours: number;
   morningStart: string | null;
   morningEnd: string | null;
   afternoonStart: string | null;
@@ -244,7 +241,7 @@ export async function POST(request: Request) {
       },
     });
 
-    const currentTotal = monthlyEntries.reduce((sum, e) => sum + Number(e.permesso104Hours), 0);
+    const currentTotal = monthlyEntries.reduce((sum, e) => sum + e.permesso104Hours, 0);
     
     if (currentTotal + permesso104Hours > 24) {
       return badRequestResponse(`Limite Permesso 104 superato. Hai già usato ${currentTotal}h questo mese. Massimo consentito: 24h.`);
@@ -284,13 +281,13 @@ export async function POST(request: Request) {
     entry = (await prisma.timeEntry.update({
       where: { id: existing.id },
       data: {
-        hoursWorked: hoursWorked.toString(),
-        overtimeHours: (overtimeHours ?? 0).toString(),
-        permessoHours: permessoHours.toString(),
-        sicknessHours: sicknessHours.toString(),
-        vacationHours: vacationHours.toString(),
-        permesso104Hours: permesso104Hours.toString(),
-        paternityHours: paternityHours.toString(),
+        hoursWorked: hoursWorked,
+        overtimeHours: overtimeHours ?? 0,
+        permessoHours: permessoHours,
+        sicknessHours: sicknessHours,
+        vacationHours: vacationHours,
+        permesso104Hours: permesso104Hours,
+        paternityHours: paternityHours,
         morningStart,
         morningEnd,
         afternoonStart,
@@ -306,13 +303,13 @@ export async function POST(request: Request) {
       data: {
         userId: targetUserId,
         workDate: new Date(`${workDate}T00:00:00.000Z`),
-        hoursWorked: hoursWorked.toString(),
-        overtimeHours: (overtimeHours ?? 0).toString(),
-        permessoHours: permessoHours.toString(),
-        sicknessHours: sicknessHours.toString(),
-        vacationHours: vacationHours.toString(),
-        permesso104Hours: permesso104Hours.toString(),
-        paternityHours: paternityHours.toString(),
+        hoursWorked: hoursWorked,
+        overtimeHours: overtimeHours ?? 0,
+        permessoHours: permessoHours,
+        sicknessHours: sicknessHours,
+        vacationHours: vacationHours,
+        permesso104Hours: permesso104Hours,
+        paternityHours: paternityHours,
         morningStart,
         morningEnd,
         afternoonStart,

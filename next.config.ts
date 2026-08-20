@@ -5,6 +5,10 @@ const nextConfig: NextConfig = {
   /* config options here */
   output: 'standalone', // Required for Docker deployment
   turbopack: {}, // Enable Turbopack explicitly
+
+  // better-sqlite3 is a native addon: it must stay an external require instead
+  // of being bundled into the server build.
+  serverExternalPackages: ['better-sqlite3'],
   
   // Security headers
   async headers() {

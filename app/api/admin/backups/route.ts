@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getRequiredSession } from "@/lib/api-middleware";
-import { performBackup } from "@/lib/db-backup";
+import { performBackup, BACKUP_EXTENSION } from "@/lib/db-backup";
 import { auditAdmin } from "@/lib/audit-log";
 import { readdir, stat } from "fs/promises";
 import path from "path";
@@ -61,10 +61,10 @@ export async function GET(req: NextRequest) {
     // Read directory contents
     const files = await readdir(backupsDir);
 
-    // Filter SQL files and get their stats
+    // Filter backup databases and get their stats
     const backupFiles = await Promise.all(
       files
-        .filter((file) => file.endsWith(".sql"))
+        .filter((file) => file.endsWith(BACKUP_EXTENSION))
         .map(async (file) => {
           const filePath = path.join(backupsDir, file);
           const stats = await stat(filePath);

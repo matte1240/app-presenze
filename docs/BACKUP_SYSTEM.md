@@ -1,12 +1,12 @@
 # 💾 Automated Backup System
 
-Complete guide to the PostgreSQL backup and restore system in the Employee Hours Tracker.
+Complete guide to the SQLite backup and restore system in the Employee Hours Tracker.
 
 ## 📋 Overview
 
 The application includes a built-in automated backup system that:
-- **Schedules** regular PostgreSQL backups via cron
-- **Stores** timestamped SQL dumps
+- **Schedules** regular database backups via cron
+- **Stores** timestamped SQLite database files
 - **Cleans up** old backups automatically
 - **Sends email alerts** on success or failure
 - **Provides** manual backup/restore tools
@@ -33,12 +33,12 @@ The application includes a built-in automated backup system that:
    - Runs in server-side only (`node` runtime)
 
 2. **`lib/db-backup.ts`** - Backup logic
-   - `createBackup()` - Executes pg_dump and saves file
-   - `cleanupOldBackups()` - Removes old backups based on retention policy
+   - `performBackup()` - Runs `VACUUM INTO` and saves the snapshot
+   - `uploadBackupToS3()` - Optional off-site copy
    - `sendBackupEmail()` - Sends status emails
 
 3. **`backups/database/`** - Storage directory
-   - Timestamped SQL files (e.g., `backup-2026-02-12T19-45-51-280Z.sql`)
+   - Timestamped SQLite files (e.g., `backup-2026-02-12T19-45-51-280Z.db`)
    - Auto-created if doesn't exist
 
 4. **`node-cron`** - Cron scheduler
@@ -57,8 +57,8 @@ Set in `.env`:
 # Backup Cron Schedule (default: daily at 2 AM)
 BACKUP_CRON_SCHEDULE="0 2 * * *"
 
-# Database Connection (required)
-DATABASE_URL="postgresql://user:password@host:5432/dbname"
+# Database file (required)
+DATABASE_URL="file:/app/data/app.db"
 
 # Email Alerts (optional but recommended)
 EMAIL_HOST="smtp.gmail.com"
@@ -112,25 +112,23 @@ graph TD
 3. **Backup Creation**
    ```ts
    // lib/db-backup.ts
-   export async function createBackup() {
-     const timestamp = new Date().toISOString();
-     const filename = `backup-${timestamp}.sql`;
-     
-     // Execute pg_dump
-     await execPgDump(filename);
-     
-     // Cleanup old files
-     await cleanupOldBackups();
-     
-     // Send success email
-     await sendBackupEmail(true, filename);
+   export async function performBackup() {
+     const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
+     const filename = `backup-${timestamp}.db`;
+
+     // Consistent snapshot of the live database, no external tooling
+     await prisma.$executeRawUnsafe(`VACUUM INTO '${backupPath}'`);
+
+     // Optional off-site copy
+     if (isS3Configured()) await uploadBackupToS3(backupPath, filename);
    }
    ```
 
-4. **pg_dump Execution**
-   - Runs PostgreSQL dump command
-   - Outputs to `backups/database/backup-[timestamp].sql`
-   - Includes schema + data
+4. **`VACUUM INTO` Execution**
+   - Writes a consistent, defragmented copy of the database while the app keeps
+     serving requests — no downtime and no database client binaries in the image
+   - Outputs to `backups/database/backup-[timestamp].db`
+   - The result is a normal SQLite database: open it with any SQLite tool
 
 5. **Cleanup**
    - List all backup files
@@ -149,16 +147,16 @@ graph TD
 employee-app/
 └── backups/
     └── database/
-        ├── backup-2026-02-10T02-00-00-000Z.sql
-        ├── backup-2026-02-11T02-00-00-000Z.sql
-        └── backup-2026-02-12T02-00-00-000Z.sql
+        ├── backup-2026-02-10T02-00-00-000Z.db
+        ├── backup-2026-02-11T02-00-00-000Z.db
+        └── backup-2026-02-12T02-00-00-000Z.db
 ```
 
 ### Filename Format
 
-**Pattern:** `backup-[ISO8601-timestamp].sql`
+**Pattern:** `backup-[ISO8601-timestamp].db`
 
-**Example:** `backup-2026-02-12T19-45-51-280Z.sql`
+**Example:** `backup-2026-02-12T19-45-51-280Z.db`
 
 **Components:**
 - `2026-02-12` - Date (YYYY-MM-DD)
@@ -172,18 +170,17 @@ employee-app/
 
 ### Create Manual Backup
 
-**Via Script:**
+**Via the UI:** Dashboard → Gestione Server → **Crea Backup**.
+
+**Via the API** (admin session required):
 ```bash
-npm run backup:db
+curl -X POST http://localhost:3000/api/admin/backups
 ```
 
-**Or directly:**
+**Directly with the sqlite3 CLI** (works on a running database thanks to WAL):
 ```bash
-# Inside Docker container
-docker compose exec app npm run backup:db
-
-# On host with PostgreSQL client
-PGPASSWORD=password pg_dump -h localhost -U username -d dbname > backup.sql
+docker compose exec app sqlite3 /app/data/app.db \
+  "VACUUM INTO '/app/backups/database/backup-manual.db'"
 ```
 
 ---
@@ -192,26 +189,26 @@ PGPASSWORD=password pg_dump -h localhost -U username -d dbname > backup.sql
 
 ⚠️ **WARNING:** This will **overwrite your entire database**. Make a backup first!
 
-**Via Script:**
+**Via the UI (recommended):** Dashboard → Gestione Server → **Ripristina Database**,
+then upload a `.db` backup. The endpoint validates the SQLite header, swaps the
+file atomically, drops the stale `-wal` / `-shm` sidecars and exits the process;
+`restart: unless-stopped` brings the container back on the restored database.
+
+**Manual restore (app stopped):**
 ```bash
-npm run restore:db backups/database/backup-2026-02-12T19-45-51-280Z.sql
+# 1. Stop the application
+npm run docker:down
+
+# 2. Replace the database file on the volume, sidecars included
+docker run --rm -v app-presenze_app_data:/data -v "$PWD:/backup" alpine sh -c \
+  "cp /backup/backup-2026-02-12T19-45-51-280Z.db /data/app.db && rm -f /data/app.db-wal /data/app.db-shm"
+
+# 3. Restart
+npm run docker:up
+
+# 4. Verify
+curl http://localhost:3000/api/health
 ```
-
-**Manual Restore:**
-```bash
-# Inside Docker container
-docker compose exec -i db psql -U username -d dbname < backup.sql
-
-# From Docker host
-cat backup.sql | docker compose exec -T db psql -U username -d dbname
-```
-
-**Steps:**
-1. Stop the application: `npm run docker:down`
-2. Start only the database: `docker compose up -d db`
-3. Run restore command
-4. Verify data: `docker compose exec db psql -U username -d dbname -c "SELECT COUNT(*) FROM \"User\""`
-5. Restart app: `npm run docker:up`
 
 ---
 
@@ -223,9 +220,9 @@ ls -lh backups/database/
 
 **Output:**
 ```
--rw-r--r-- 1 user user 1.2M Feb 10 02:00 backup-2026-02-10T02-00-00-000Z.sql
--rw-r--r-- 1 user user 1.3M Feb 11 02:00 backup-2026-02-11T02-00-00-000Z.sql
--rw-r--r-- 1 user user 1.4M Feb 12 02:00 backup-2026-02-12T02-00-00-000Z.sql
+-rw-r--r-- 1 user user 1.2M Feb 10 02:00 backup-2026-02-10T02-00-00-000Z.db
+-rw-r--r-- 1 user user 1.3M Feb 11 02:00 backup-2026-02-11T02-00-00-000Z.db
+-rw-r--r-- 1 user user 1.4M Feb 12 02:00 backup-2026-02-12T02-00-00-000Z.db
 ```
 
 ---
@@ -244,7 +241,7 @@ The automated database backup has completed successfully.
 
 Details:
 - Time: 2026-02-12 02:00:00 UTC
-- File: backup-2026-02-12T02-00-00-000Z.sql
+- File: backup-2026-02-12T02-00-00-000Z.db
 - Size: 1.4 MB
 - Location: /app/backups/database/
 
@@ -289,12 +286,8 @@ Ensure `docker-compose.yml` includes backup volume:
 services:
   app:
     volumes:
+      - app_data:/app/data      # The SQLite database itself
       - ./backups:/app/backups  # Persist backups on host
-  
-  db:
-    volumes:
-      - postgres-data:/var/lib/postgresql/data
-      - ./backups:/backups  # Optional: for direct DB access
 ```
 
 **Benefits:**
@@ -307,11 +300,12 @@ services:
 ### Backup from Running Container
 
 ```bash
-# Create backup inside container
-docker compose exec app node -e "require('./lib/db-backup').createBackup()"
+# Create a backup inside the container
+docker compose exec app sqlite3 /app/data/app.db \
+  "VACUUM INTO '/app/backups/database/backup-manual.db'"
 
-# Copy backup to host
-docker compose cp app:/app/backups/database/backup-latest.sql ./local-backup.sql
+# Copy the backup to the host
+docker compose cp app:/app/backups/database/backup-manual.db ./local-backup.db
 ```
 
 ---
@@ -340,7 +334,7 @@ docker compose logs app | grep -i backup
 
 # Output example:
 # [2026-02-12T02:00:00.000Z] Starting automated backup...
-# [2026-02-12T02:00:05.123Z] Backup created: backup-2026-02-12T02-00-00-000Z.sql
+# [2026-02-12T02:00:05.123Z] Backup created: backup-2026-02-12T02-00-00-000Z.db
 # [2026-02-12T02:00:05.456Z] Cleanup removed 3 old backups
 # [2026-02-12T02:00:06.789Z] Backup email sent successfully
 ```
@@ -369,7 +363,7 @@ docker compose logs app | grep -i backup
 
 ```bash
 # Set restrictive permissions
-chmod 600 backups/database/*.sql
+chmod 600 backups/database/*.db
 
 # Restrict directory access
 chmod 700 backups/database/
@@ -381,10 +375,10 @@ chmod 700 backups/database/
 
 ```bash
 # Encrypt backup
-gpg --symmetric --cipher-algo AES256 backup.sql
+gpg --symmetric --cipher-algo AES256 backup.db
 
 # Decrypt for restore
-gpg --decrypt backup.sql.gpg > backup.sql
+gpg --decrypt backup.db.gpg > backup.db
 ```
 
 ---
@@ -472,14 +466,23 @@ chown -R $(whoami):$(whoami) backups/
 
 ---
 
-### "pg_dump: command not found"
+### "cannot VACUUM INTO an existing file"
 
-**Solution:**
-Ensure PostgreSQL client tools are installed in the app container.
+`VACUUM INTO` refuses to overwrite. Backups are named with a millisecond
+timestamp so this only happens if a file with the same name already exists —
+delete or rename it and run the backup again.
 
-**Dockerfile:**
-```dockerfile
-RUN apk add --no-cache postgresql-client
+---
+
+### "attempt to write a readonly database"
+
+The app user cannot write to the database directory. The WAL journal needs to
+create `app.db-wal` and `app.db-shm` *next to* the database, so the directory
+itself must be writable, not just the file:
+
+```bash
+docker compose exec app ls -la /app/data
+docker compose exec -u root app chown -R nextjs:nodejs /app/data
 ```
 
 ---
@@ -495,18 +498,16 @@ RUN apk add --no-cache postgresql-client
 
 ### Backup Too Large
 
+`VACUUM INTO` already produces a defragmented copy, so a backup is usually
+smaller than the live database.
+
 **Solutions:**
 1. **Compress backups:**
    ```bash
-   pg_dump ... | gzip > backup.sql.gz
+   gzip -k backups/database/backup-*.db
    ```
 
-2. **Exclude large tables:**
-   ```bash
-   pg_dump --exclude-table=logs ...
-   ```
-
-3. **Increase retention cleanup frequency**
+2. **Increase retention cleanup frequency**
 
 ---
 

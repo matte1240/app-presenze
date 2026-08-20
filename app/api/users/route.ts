@@ -10,7 +10,6 @@ import {
   conflictResponse,
   handleError,
 } from "@/lib/api-responses";
-import { decimalToNumber } from "@/lib/utils/serialization";
 import { createDefaultSchedulesForUser } from "@/lib/utils/schedule-utils.server";
 
 type UserRole = "EMPLOYEE" | "ADMIN";
@@ -60,7 +59,7 @@ export async function GET() {
 
   for (const item of totals) {
     const total = item._sum.hoursWorked;
-    totalsMap.set(item.userId, decimalToNumber(total));
+    totalsMap.set(item.userId, total ?? 0);
   }
 
   const payload = users.map((user) => ({

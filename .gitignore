@@ -78,3 +78,9 @@ build.log
 # user content
 /public/uploads
 
+
+# sqlite database
+/data
+*.db
+*.db-wal
+*.db-shm

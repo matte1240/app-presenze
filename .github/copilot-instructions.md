@@ -20,7 +20,7 @@
 
 ### Backend & Data
 - **Prisma ORM v7** (Type-safe database access, Rust-free client with `@prisma/adapter-pg`)
-- **PostgreSQL 16** (Primary database)
+- **SQLite** (embedded database, via Prisma + better-sqlite3)
 - **NextAuth v4** (Credentials provider, JWT sessions, Prisma adapter)
 
 ### Prisma v7 Architecture

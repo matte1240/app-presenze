@@ -281,4 +281,4 @@ Potential areas for further optimization:
 
 - [Prisma Performance Best Practices](https://www.prisma.io/docs/guides/performance-and-optimization)
 - [React Performance Optimization](https://react.dev/learn/render-and-commit)
-- [PostgreSQL Indexing Best Practices](https://www.postgresql.org/docs/current/indexes.html)
+- [SQLite Query Planner & Indexes](https://www.sqlite.org/queryplanner.html)

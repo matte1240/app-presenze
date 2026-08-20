@@ -54,10 +54,10 @@ export async function POST(request: Request) {
       const workDateStr = entry.workDate.toISOString().split("T")[0];
       const isWorkday = isWorkingDay && !isHoliday(workDateStr);
 
-      const sicknessHours = Number(entry.sicknessHours);
-      const vacationHours = Number(entry.vacationHours);
-      const permesso104Hours = Number(entry.permesso104Hours);
-      const paternityHours = Number(entry.paternityHours);
+      const sicknessHours = entry.sicknessHours;
+      const vacationHours = entry.vacationHours;
+      const permesso104Hours = entry.permesso104Hours;
+      const paternityHours = entry.paternityHours;
 
       // Skip entries that are full-day leave types (vacation, sickness, paternity)
       // These should use the schedule's base hours
@@ -66,10 +66,10 @@ export async function POST(request: Request) {
 
       if (isFullDayLeave) {
         // Recalculate full-day leave hours based on schedule
-        const newData: Record<string, string> = {};
-        if (vacationHours > 0) newData.vacationHours = baseHours.toString();
-        if (sicknessHours > 0) newData.sicknessHours = baseHours.toString();
-        if (paternityHours > 0) newData.paternityHours = baseHours.toString();
+        const newData: Record<string, number> = {};
+        if (vacationHours > 0) newData.vacationHours = baseHours;
+        if (sicknessHours > 0) newData.sicknessHours = baseHours;
+        if (paternityHours > 0) newData.paternityHours = baseHours;
 
         if (Object.keys(newData).length > 0) {
           await prisma.timeEntry.update({
@@ -128,9 +128,9 @@ export async function POST(request: Request) {
       await prisma.timeEntry.update({
         where: { id: entry.id },
         data: {
-          hoursWorked: regular.toString(),
-          overtimeHours: overtime.toString(),
-          permessoHours: permessoHours.toString(),
+          hoursWorked: regular,
+          overtimeHours: overtime,
+          permessoHours: permessoHours,
         },
       });
       updated++;

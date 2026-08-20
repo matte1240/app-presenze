@@ -1,6 +1,3 @@
-import type { Prisma } from "@/lib/generated/prisma/client";
-
-type Decimal = Prisma.Decimal;
 import { endOfMonth, startOfMonth } from "date-fns";
 import prisma from "@/lib/prisma";
 import { getAuthSession } from "@/lib/auth";
@@ -12,13 +9,13 @@ type PrismaEntry = {
   id: string;
   userId: string;
   workDate: Date;
-  hoursWorked: Decimal;
-  overtimeHours: Decimal;
-  permessoHours: Decimal;
-  vacationHours: Decimal;
-  sicknessHours: Decimal;
-  permesso104Hours: Decimal;
-  paternityHours: Decimal;
+  hoursWorked: number;
+  overtimeHours: number;
+  permessoHours: number;
+  vacationHours: number;
+  sicknessHours: number;
+  permesso104Hours: number;
+  paternityHours: number;
   morningStart: string | null;
   morningEnd: string | null;
   afternoonStart: string | null;

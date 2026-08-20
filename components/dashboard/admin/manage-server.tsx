@@ -127,14 +127,15 @@ export function ManageServer() {
     const file = event.target.files?.[0];
     if (!file) return;
 
-    if (!file.name.endsWith(".sql")) {
-      setError("Solo file .sql sono permessi");
+    if (!file.name.endsWith(".db")) {
+      setError("Solo file .db sono permessi");
       return;
     }
 
     const confirmed = window.confirm(
       `⚠️ ATTENZIONE: Il ripristino del database sovrascriverà tutti i dati attuali!\n\n` +
         `Vuoi davvero ripristinare il backup "${file.name}"?\n\n` +
+        `Al termine l'applicazione si riavvierà automaticamente.\n` +
         `Questa operazione non può essere annullata.`
     );
 
@@ -167,8 +168,10 @@ export function ManageServer() {
         throw new Error(data.error || "Failed to restore backup");
       }
 
-      setSuccess(`Database ripristinato con successo da: ${file.name}`);
-      await fetchBackups();
+      setSuccess(
+        `Database ripristinato da: ${file.name}. L'applicazione si sta riavviando, ` +
+          `ricarica la pagina tra qualche secondo.`
+      );
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to restore backup");
       console.error("Error restoring backup:", err);
@@ -225,7 +228,7 @@ export function ManageServer() {
                   Crea Backup
                 </h3>
                 <p className="text-sm text-muted-foreground mb-4">
-                  Crea un dump completo del database PostgreSQL
+                  Crea uno snapshot completo del database SQLite
                 </p>
                 <button
                   onClick={handleCreateBackup}
@@ -244,12 +247,12 @@ export function ManageServer() {
                   Ripristina Database
                 </h3>
                 <p className="text-sm text-muted-foreground mb-4">
-                  Carica un file .sql per ripristinare il database
+                  Carica un file .db per ripristinare il database
                 </p>
                 <label className="block cursor-pointer">
                   <input
                     type="file"
-                    accept=".sql"
+                    accept=".db"
                     onChange={handleRestoreBackup}
                     disabled={loading}
                     className="block w-full text-sm text-muted-foreground file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-destructive/10 file:text-destructive hover:file:bg-destructive/20 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
@@ -257,7 +260,7 @@ export function ManageServer() {
                 </label>
                 <p className="text-xs text-destructive mt-2 flex items-center gap-1">
                   <AlertTriangle className="w-3 h-3" />
-                  Attenzione: questa operazione sovrascriverà tutti i dati!
+                  Attenzione: sovrascrive tutti i dati e riavvia l&apos;applicazione!
                 </p>
               </div>
             </div>
