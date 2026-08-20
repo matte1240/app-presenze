@@ -1,0 +1,144 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../lib/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  id                String            @id @default(cuid())
+  name              String?
+  email             String            @unique
+  passwordHash      String
+  role              Role              @default(EMPLOYEE)
+  image             String?
+  emailVerified     DateTime?
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+  tokenVersion      Int               @default(0)
+  hasPaternityLeave Boolean           @default(false)
+  hasPermesso104    Boolean           @default(false)
+  canWorkSunday     Boolean           @default(false)
+  accounts          Account[]
+  leaveRequests     LeaveRequest[]
+  sessions          Session[]
+  timeEntries       TimeEntry[]
+  workingSchedules  WorkingSchedule[]
+}
+
+model WorkingSchedule {
+  id             String   @id @default(cuid())
+  userId         String
+  dayOfWeek      Int
+  morningStart   String?
+  morningEnd     String?
+  afternoonStart String?
+  afternoonEnd   String?
+  totalHours     Decimal  @default(0)
+  useManualHours Boolean  @default(false)
+  isWorkingDay   Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, dayOfWeek])
+  @@index([userId])
+}
+
+model TimeEntry {
+  id                 String   @id @default(cuid())
+  userId             String
+  workDate           DateTime
+  hoursWorked        Decimal
+  overtimeHours      Decimal  @default(0)
+  permessoHours      Decimal  @default(0)
+  morningStart       String?
+  morningEnd         String?
+  afternoonStart     String?
+  afternoonEnd       String?
+  notes              String?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+  medicalCertificate String?
+  sicknessHours      Decimal  @default(0)
+  vacationHours      Decimal  @default(0)
+  paternityHours     Decimal  @default(0)
+  permesso104Hours   Decimal  @default(0)
+  user               User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, workDate], map: "user_workdate_unique")
+  @@index([workDate], map: "workdate_idx")
+}
+
+model Account {
+  id                       String  @id @default(cuid())
+  userId                   String
+  type                     String
+  provider                 String
+  providerAccountId        String
+  refresh_token            String?
+  access_token             String?
+  expires_at               Int?
+  token_type               String?
+  scope                    String?
+  id_token                 String?
+  session_state            String?
+  refresh_token_expires_in Int?
+  user                     User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+model LeaveRequest {
+  id        String        @id @default(cuid())
+  userId    String
+  startDate DateTime
+  endDate   DateTime
+  type      LeaveType
+  status    RequestStatus @default(PENDING)
+  reason    String?
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+  endTime   String?
+  startTime String?
+  user      User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, status], map: "user_status_idx")
+  @@index([status, createdAt], map: "status_created_idx")
+  @@index([userId, startDate, endDate], map: "user_dates_idx")
+}
+
+enum Role {
+  EMPLOYEE
+  ADMIN
+}
+
+enum RequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum LeaveType {
+  VACATION
+  SICKNESS
+  PERMESSO
+}

@@ -1,0 +1,11 @@
+blank_issues_enabled: false
+contact_links:
+  - name: 📚 Documentation
+    url: https://github.com/matte1240/app-presenze/blob/main/README.md
+    about: Check the documentation for setup and usage guides
+  - name: 💬 Discussions
+    url: https://github.com/matte1240/app-presenze/discussions
+    about: Ask questions and discuss ideas with the community
+  - name: 🔒 Security Issue
+    url: mailto:your-email@example.com
+    about: Report security vulnerabilities privately via email

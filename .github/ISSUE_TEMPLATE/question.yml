@@ -1,0 +1,66 @@
+name: ❓ Question
+description: Ask a question about usage, configuration, or development
+title: "[Question]: "
+labels: ["question"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for asking! Please search existing discussions and documentation first.
+
+  - type: textarea
+    id: question
+    attributes:
+      label: Your Question
+      description: What would you like to know?
+      placeholder: I want to understand...
+    validations:
+      required: true
+
+  - type: dropdown
+    id: category
+    attributes:
+      label: Question Category
+      description: What is your question about?
+      options:
+        - 🚀 Installation/Setup
+        - 🐳 Docker/Deployment
+        - 🔐 Authentication/Security
+        - 📊 Features/Usage
+        - 💾 Database/Prisma
+        - 🎨 UI/Customization
+        - 🔧 Configuration
+        - 🐛 Troubleshooting
+        - 💻 Development
+        - 📚 Documentation
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Context
+      description: Provide any relevant context about your setup or use case
+      placeholder: |
+        - Environment: Docker / Local development
+        - Version: v1.0.0
+        - What you're trying to achieve
+        - What you've already tried
+
+  - type: textarea
+    id: additional
+    attributes:
+      label: Additional Information
+      description: Any other details that might be helpful
+      placeholder: Add any other context here...
+
+  - type: checkboxes
+    id: checklist
+    attributes:
+      label: Checklist
+      options:
+        - label: I have searched existing issues and discussions
+          required: true
+        - label: I have read the relevant documentation
+          required: false

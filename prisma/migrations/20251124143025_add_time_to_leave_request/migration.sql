@@ -1,0 +1,3 @@
+-- AlterTable
+ALTER TABLE "LeaveRequest" ADD COLUMN IF NOT EXISTS "endTime" TEXT,
+ADD COLUMN IF NOT EXISTS "startTime" TEXT;
