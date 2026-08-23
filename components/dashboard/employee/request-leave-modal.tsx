@@ -2,9 +2,11 @@
 
 import { useState, useTransition, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { Loader2, X, CheckCircle2, AlertCircle } from "lucide-react";
-import { cn } from "@/lib/utils";
 import { RequestStatus } from "@/types/models";
+import { Alert } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
+import { Dialog } from "@/components/ui/dialog";
+import { Field, Input, Select, Textarea } from "@/components/ui/input";
 import { TIME_OPTIONS } from "@/lib/utils/time-utils";
 
 type RequestLeaveModalProps = {
@@ -98,205 +100,171 @@ export default function RequestLeaveModal({ isOpen, onClose, editRequest }: Requ
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm p-4 animate-in fade-in duration-200">
-      <div className="w-full max-w-md rounded-xl border border-border bg-card p-6 shadow-2xl animate-in zoom-in-95 duration-200">
-        <div className="flex items-center justify-between mb-6">
-          <h2 className="text-xl font-bold text-foreground">
-            {editRequest ? "Modifica Richiesta" : "Richiedi Ferie/Permesso"}
-          </h2>
-          <button
-            onClick={onClose}
-            className="rounded-full p-1 text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors"
-          >
-            <X className="h-5 w-5" />
-          </button>
-        </div>
+    <Dialog
+      open={isOpen}
+      onClose={onClose}
+      title={editRequest ? "Modifica richiesta" : "Richiedi ferie o permesso"}
+      footer={
+        <>
+          <Button variant="ghost" onClick={onClose} disabled={isPending}>
+            Annulla
+          </Button>
+          <Button type="submit" form="leave-request-form" loading={isPending}>
+            {isPending
+              ? "Salvataggio…"
+              : editRequest
+                ? "Salva modifiche"
+                : "Invia richiesta"}
+          </Button>
+        </>
+      }
+    >
+      <form id="leave-request-form" onSubmit={handleSubmit} className="space-y-4">
+        {error && <Alert variant="error">{error}</Alert>}
+        {success && <Alert variant="success">{success}</Alert>}
 
-        {error && (
-          <div className="mb-4 rounded-lg border border-destructive/50 bg-destructive/10 p-3 flex items-center gap-2 text-sm text-destructive animate-in slide-in-from-top-2">
-            <AlertCircle className="h-4 w-4" />
-            {error}
-          </div>
-        )}
-
-        {success && (
-          <div className="mb-4 rounded-lg border border-emerald-500/50 bg-emerald-500/10 p-3 flex items-center gap-2 text-sm text-emerald-600 dark:text-emerald-400 animate-in slide-in-from-top-2">
-            <CheckCircle2 className="h-4 w-4" />
-            {success}
-          </div>
-        )}
-
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <label className="text-sm font-medium text-foreground">
-                Data Inizio
-              </label>
-              <input
-                type="date"
-                required
-                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                value={formData.startDate}
-                onChange={(e) => {
-                  const newStartDate = e.target.value;
-                  setFormData((prev) => ({
-                    ...prev,
-                    startDate: newStartDate,
-                    // If type is PERMESSO, force endDate to match startDate
-                    endDate: prev.type === "PERMESSO" ? newStartDate : prev.endDate,
-                  }));
-                }}
-              />
-            </div>
-            <div className="space-y-2">
-              <label className="text-sm font-medium text-foreground">
-                Data Fine
-              </label>
-              <input
-                type="date"
-                required
-                disabled={formData.type === "PERMESSO"}
-                className={cn(
-                  "flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50",
-                  formData.type === "PERMESSO" && "bg-muted text-muted-foreground"
-                )}
-                value={formData.endDate}
-                onChange={(e) =>
-                  setFormData({ ...formData, endDate: e.target.value })
-                }
-              />
-            </div>
-          </div>
-
-          <div className="space-y-2">
-            <label className="text-sm font-medium text-foreground">
-              Tipo Richiesta
-            </label>
-            <select
-              className="flex h-10 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 transition-all hover:bg-accent/50 cursor-pointer"
+        <Field label="Tipo di richiesta">
+          {(field) => (
+            <Select
+              {...field}
               value={formData.type}
               onChange={(e) => {
                 const newType = e.target.value as "VACATION" | "PERMESSO";
                 setFormData((prev) => ({
                   ...prev,
                   type: newType,
-                  // If switching to PERMESSO, sync endDate with startDate
+                  // A permesso is a slice of a single day, so the end date
+                  // follows the start date rather than being chosen.
                   endDate: newType === "PERMESSO" ? prev.startDate : prev.endDate,
                 }));
               }}
             >
               <option value="VACATION">Ferie</option>
               <option value="PERMESSO">Permesso</option>
-            </select>
-          </div>
+            </Select>
+          )}
+        </Field>
 
-          {formData.type === "PERMESSO" && (
-            <div className="grid grid-cols-2 gap-4 animate-in fade-in slide-in-from-top-2">
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-foreground">
-                  Ora Inizio
-                </label>
-                <select
+        <div className="grid grid-cols-2 gap-3">
+          <Field label="Data inizio">
+            {(field) => (
+              <Input
+                {...field}
+                type="date"
+                required
+                value={formData.startDate}
+                onChange={(e) => {
+                  const newStartDate = e.target.value;
+                  setFormData((prev) => ({
+                    ...prev,
+                    startDate: newStartDate,
+                    endDate:
+                      prev.type === "PERMESSO" ? newStartDate : prev.endDate,
+                  }));
+                }}
+              />
+            )}
+          </Field>
+          <Field
+            label="Data fine"
+            hint={
+              formData.type === "PERMESSO" ? "Segue la data di inizio." : undefined
+            }
+          >
+            {(field) => (
+              <Input
+                {...field}
+                type="date"
+                required
+                disabled={formData.type === "PERMESSO"}
+                value={formData.endDate}
+                onChange={(e) =>
+                  setFormData({ ...formData, endDate: e.target.value })
+                }
+              />
+            )}
+          </Field>
+        </div>
+
+        {formData.type === "PERMESSO" && (
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="Ora inizio">
+              {(field) => (
+                <Select
+                  {...field}
                   required
-                  className="flex h-10 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 transition-all hover:bg-accent/50 cursor-pointer"
                   value={formData.startTime}
                   onChange={(e) =>
                     setFormData({ ...formData, startTime: e.target.value })
                   }
                 >
-                  <option value="">Seleziona orario</option>
+                  <option value="">Seleziona</option>
                   {TIME_OPTIONS.map((time) => (
                     <option key={time} value={time}>
                       {time}
                     </option>
                   ))}
-                </select>
-              </div>
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-foreground">
-                  Ora Fine
-                </label>
-                <select
+                </Select>
+              )}
+            </Field>
+            <Field label="Ora fine">
+              {(field) => (
+                <Select
+                  {...field}
                   required
-                  className="flex h-10 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 transition-all hover:bg-accent/50 cursor-pointer"
                   value={formData.endTime}
                   onChange={(e) =>
                     setFormData({ ...formData, endTime: e.target.value })
                   }
                 >
-                  <option value="">Seleziona orario</option>
+                  <option value="">Seleziona</option>
                   {TIME_OPTIONS.map((time) => (
                     <option key={time} value={time}>
                       {time}
                     </option>
                   ))}
-                </select>
-              </div>
-            </div>
-          )}
+                </Select>
+              )}
+            </Field>
+          </div>
+        )}
 
-          {editRequest && (
-            <div className="space-y-2">
-              <label className="text-sm font-medium text-foreground">
-                Stato
-              </label>
-              <select
-                className="flex h-10 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 transition-all hover:bg-accent/50 cursor-pointer"
+        {editRequest && (
+          <Field label="Stato">
+            {(field) => (
+              <Select
+                {...field}
                 value={formData.status}
                 onChange={(e) =>
-                  setFormData({ ...formData, status: e.target.value as RequestStatus })
+                  setFormData({
+                    ...formData,
+                    status: e.target.value as RequestStatus,
+                  })
                 }
               >
-                <option value="PENDING">In Attesa</option>
+                <option value="PENDING">In attesa</option>
                 <option value="APPROVED">Approvata</option>
                 <option value="REJECTED">Rifiutata</option>
-              </select>
-            </div>
-          )}
+              </Select>
+            )}
+          </Field>
+        )}
 
-          <div className="space-y-2">
-            <label className="text-sm font-medium text-foreground">
-              Motivazione (opzionale)
-            </label>
-            <textarea
-              className="flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 resize-none"
+        <Field label="Motivazione" hint="Facoltativa">
+          {(field) => (
+            <Textarea
+              {...field}
               rows={3}
+              className="resize-none"
               value={formData.reason}
               onChange={(e) =>
                 setFormData({ ...formData, reason: e.target.value })
               }
-              placeholder="Inserisci note aggiuntive..."
+              placeholder="Aggiungi una nota per chi approva…"
             />
-          </div>
-
-          <div className="mt-6 flex justify-end gap-3 pt-2">
-            <button
-              type="button"
-              onClick={onClose}
-              className="inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 border border-input bg-background hover:bg-accent hover:text-accent-foreground h-10 px-4 py-2"
-              disabled={isPending}
-            >
-              Annulla
-            </button>
-            <button
-              type="submit"
-              disabled={isPending}
-              className="inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 bg-primary text-primary-foreground hover:bg-primary/90 h-10 px-4 py-2 shadow-sm"
-            >
-              {isPending ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Salvataggio...
-                </>
-              ) : editRequest ? (
-                "Salva Modifiche"
-              ) : (
-                "Invia Richiesta"
-              )}
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
+          )}
+        </Field>
+      </form>
+    </Dialog>
   );
 }

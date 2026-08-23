@@ -25,8 +25,14 @@ const PRAGMAS = [
 ];
 
 function createPrismaClient() {
-  const adapter = new PrismaBetterSqlite3({ url: process.env.DATABASE_URL! });
-  const client = new PrismaClient({ adapter });
+  const url = process.env.DATABASE_URL;
+  const client = new PrismaClient({ adapter: new PrismaBetterSqlite3({ url: url! }) });
+
+  // `next build` imports every route module to collect metadata, with no
+  // DATABASE_URL and no database to talk to. Opening a connection there would
+  // fail noisily for no reason, so the pragmas wait until there is a URL to
+  // connect to; any real query still surfaces a missing URL on its own.
+  if (!url) return client;
 
   // PRAGMA statements return rows, so they go through $queryRawUnsafe. They are
   // issued before any application query reaches the single SQLite connection.

@@ -150,6 +150,23 @@ Available tokens: `background`, `foreground`, `card`, `cardForeground`,
 `destructive`, `destructiveForeground`, `border`, `input`, `ring`, `chart1`–
 `chart5`.
 
+### What is deliberately *not* brandable
+
+`globals.css` also defines `success`, `warning` and `info` (each with a
+`-foreground` and a `-subtle` variant), and these are **not** part of the
+branding contract.
+
+They carry meaning rather than identity: an approved request is green and a
+rejected one is red for every customer, and repainting them would break
+comprehension rather than personalise it. They are also what keeps badges,
+alerts, calendar markers and toasts speaking one vocabulary. If a customer
+genuinely needs different status colours, edit `app/globals.css` in their fork
+rather than widening `ThemeTokens`.
+
+The email palette is the exception — see [Emails](#emails). Transactional mail
+is read outside the product, next to messages from other senders, so its
+success/warning/danger colours *are* brandable.
+
 ### How it reaches the page
 
 The root layout renders the resolved tokens into a `<style id="brand-theme">`

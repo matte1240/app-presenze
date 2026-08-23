@@ -4,6 +4,7 @@ import { GeistMono } from "geist/font/mono";
 import AuthSessionProvider from "@/components/auth/session-provider";
 import { ThemeProvider } from "@/components/theme-provider";
 import { BrandingProvider } from "@/components/branding/branding-provider";
+import { ToastProvider } from "@/components/ui/toast";
 import { buildThemeCss, getBranding, getPublicBranding } from "@/lib/branding";
 import "./globals.css";
 
@@ -74,7 +75,9 @@ export default function RootLayout({
           disableTransitionOnChange
         >
           <BrandingProvider branding={getPublicBranding()}>
-            <AuthSessionProvider>{children}</AuthSessionProvider>
+            <AuthSessionProvider>
+              <ToastProvider>{children}</ToastProvider>
+            </AuthSessionProvider>
           </BrandingProvider>
         </ThemeProvider>
       </body>

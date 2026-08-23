@@ -2,6 +2,10 @@ import { getAuthSession } from "@/lib/auth";
 import prisma from "@/lib/prisma";
 import AdminOverview from "@/components/dashboard/admin/overview";
 import PendingRequests from "@/components/dashboard/admin/pending-requests";
+import StatsCard from "@/components/dashboard/shared/stats-card";
+import { PageContainer, PageHeader, Section } from "@/components/layout/page";
+import { getBranding } from "@/lib/branding";
+import { Briefcase, CalendarDays, Clock, Users } from "lucide-react";
 import type { User } from "@/types/models";
 
 type UserAggregate = User & {
@@ -63,22 +67,12 @@ export default async function AdminDashboardPage() {
   const vacationHoursMap = new Map<string, number>();
 
   for (const row of totals) {
-    if (row._sum) {
-      const regularHours = row._sum.hoursWorked ? parseFloat(row._sum.hoursWorked.toString()) : 0;
-      const overtimeHours = row._sum.overtimeHours ? parseFloat(row._sum.overtimeHours.toString()) : 0;
-      const permessoHours = row._sum.permessoHours ? parseFloat(row._sum.permessoHours.toString()) : 0;
-      const sicknessHours = row._sum.sicknessHours ? parseFloat(row._sum.sicknessHours.toString()) : 0;
-      const vacationHours = row._sum.vacationHours ? parseFloat(row._sum.vacationHours.toString()) : 0;
-
-      console.log(`[SERVER] userId: ${row.userId}, hoursWorked: ${regularHours}, overtime: ${overtimeHours}, permesso: ${permessoHours}, sickness: ${sicknessHours}, vacation: ${vacationHours}`);
-
-      // hoursWorked already contains only regular hours (max 8 per day)
-      regularHoursMap.set(row.userId, regularHours);
-      overtimeHoursMap.set(row.userId, overtimeHours);
-      permessoHoursMap.set(row.userId, permessoHours);
-      sicknessHoursMap.set(row.userId, sicknessHours);
-      vacationHoursMap.set(row.userId, vacationHours);
-    }
+    // hoursWorked already contains only regular hours (max 8 per day)
+    regularHoursMap.set(row.userId, row._sum.hoursWorked ?? 0);
+    overtimeHoursMap.set(row.userId, row._sum.overtimeHours ?? 0);
+    permessoHoursMap.set(row.userId, row._sum.permessoHours ?? 0);
+    sicknessHoursMap.set(row.userId, row._sum.sicknessHours ?? 0);
+    vacationHoursMap.set(row.userId, row._sum.vacationHours ?? 0);
   }
 
   const lastEntryMap = new Map<string, string | null>();
@@ -96,12 +90,65 @@ export default async function AdminDashboardPage() {
     lastEntry: lastEntryMap.get(user.id) ?? null,
   }));
 
+  // Team-wide figures for the header strip: an admin opening the dashboard
+  // should see the state of the month before scanning individual rows.
+  const teamTotals = rows.reduce(
+    (acc, row) => ({
+      worked: acc.worked + row.regularHours + row.overtimeHours,
+      overtime: acc.overtime + row.overtimeHours,
+      leave: acc.leave + row.permessoHours + row.vacationHours,
+    }),
+    { worked: 0, overtime: 0, leave: 0 }
+  );
+
+  const periodLabel = new Intl.DateTimeFormat(getBranding().app.locale, {
+    month: "long",
+    year: "numeric",
+  }).format(now);
+
   return (
-    <div className="space-y-8">
-      <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 pt-8">
-        <PendingRequests />
+    <PageContainer width="wide" className="space-y-6">
+      <PageHeader
+        title="Panoramica"
+        description={`Attività del team · ${periodLabel}`}
+      />
+
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <StatsCard
+          title="Ore lavorate"
+          value={teamTotals.worked.toFixed(1)}
+          tone="primary"
+          icon={<Clock />}
+          hint="Totale del team questo mese"
+        />
+        <StatsCard
+          title="Straordinario"
+          value={teamTotals.overtime.toFixed(1)}
+          tone="warning"
+          icon={<Briefcase />}
+          hint="Oltre l'orario contrattuale"
+        />
+        <StatsCard
+          title="Permessi e ferie"
+          value={teamTotals.leave.toFixed(1)}
+          tone="info"
+          icon={<CalendarDays />}
+          hint="Ore di assenza approvate"
+        />
+        <StatsCard
+          title="Persone"
+          value={rows.length}
+          tone="neutral"
+          icon={<Users />}
+          hint="Account attivi"
+        />
       </div>
-      <AdminOverview users={rows} />
-    </div>
+
+      <PendingRequests />
+
+      <Section>
+        <AdminOverview users={rows} periodLabel={`Ore di ${periodLabel}`} />
+      </Section>
+    </PageContainer>
   );
 }

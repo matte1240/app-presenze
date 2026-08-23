@@ -1,6 +1,7 @@
 "use client";
 
 import { cn } from "@/lib/utils";
+import { Select } from "@/components/ui/input";
 import { ChevronDown } from "lucide-react";
 import { useState, useRef, useEffect, forwardRef } from "react";
 
@@ -115,10 +116,10 @@ const MonthPicker = forwardRef<HTMLDivElement, MonthPickerProps>(
           disabled={disabled}
           onClick={() => setIsOpen(!isOpen)}
           className={cn(
-            "w-full cursor-pointer rounded-lg border border-input bg-background px-4 py-3 text-left text-sm font-medium outline-none transition",
-            "hover:bg-muted focus:ring-2 focus:ring-primary/20",
-            "flex items-center justify-between gap-2",
-            "disabled:cursor-not-allowed disabled:opacity-50",
+            "flex h-9 w-full cursor-pointer items-center justify-between gap-2 rounded-md border border-input",
+            "bg-card px-3 text-left text-sm shadow-elevation-1 outline-none",
+            "transition-[border-color] duration-150 hover:border-muted-foreground/30",
+            "disabled:cursor-not-allowed disabled:opacity-60",
             className
           )}
         >
@@ -127,67 +128,47 @@ const MonthPicker = forwardRef<HTMLDivElement, MonthPickerProps>(
           </span>
           <ChevronDown
             className={cn(
-              "h-5 w-5 text-muted-foreground transition-transform",
+              "size-4 shrink-0 text-muted-foreground transition-transform duration-200",
               isOpen && "rotate-180"
             )}
           />
         </button>
 
         {isOpen && (
-          <div className="absolute z-50 mt-2 w-full min-w-[280px] bg-popover border border-border rounded-lg shadow-lg p-4 animate-in fade-in zoom-in-95 duration-200">
-            {/* Year selector */}
-            <div className="mb-3">
-              <label className="block text-xs font-semibold text-muted-foreground mb-1">
-                Anno
-              </label>
-              <select
-                value={selectedYear}
-                onChange={(e) => handleYearChange(Number(e.target.value))}
-                className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm font-medium shadow-sm transition-all hover:bg-accent/50 focus:border-primary focus:ring-2 focus:ring-primary/20 cursor-pointer"
-              >
-                {years.map((year) => (
-                  <option key={year} value={year}>
-                    {year}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            {/* Month grid */}
-            <div className="mb-3">
-              <label className="block text-xs font-semibold text-muted-foreground mb-1">
-                Mese
-              </label>
-              <div className="grid grid-cols-3 gap-2">
-                {MONTHS.map((monthName, idx) => {
-                  const isSelected = selectedMonth === idx + 1;
-                  return (
-                    <button
-                      key={monthName}
-                      type="button"
-                      onClick={() => handleMonthSelect(idx)}
-                      className={cn(
-                        "px-3 py-2 text-sm font-semibold rounded-md transition",
-                        isSelected
-                          ? "bg-primary text-primary-foreground"
-                          : "bg-muted text-foreground hover:bg-muted/80"
-                      )}
-                    >
-                      {monthName}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-
-            {/* Close button */}
-            <button
-              type="button"
-              onClick={() => setIsOpen(false)}
-              className="w-full px-3 py-2 text-sm font-medium text-foreground bg-muted hover:bg-muted/80 rounded-md transition"
+          <div className="absolute z-50 mt-1.5 w-full min-w-[268px] rounded-lg border border-border bg-popover p-3 shadow-elevation-3 animate-in fade-in zoom-in-95 duration-150">
+            <Select
+              aria-label="Anno"
+              value={selectedYear}
+              onChange={(e) => handleYearChange(Number(e.target.value))}
+              className="mb-2"
             >
-              Chiudi
-            </button>
+              {years.map((year) => (
+                <option key={year} value={year}>
+                  {year}
+                </option>
+              ))}
+            </Select>
+
+            <div className="grid grid-cols-3 gap-1">
+              {MONTHS.map((monthName, idx) => {
+                const isSelected = selectedMonth === idx + 1;
+                return (
+                  <button
+                    key={monthName}
+                    type="button"
+                    onClick={() => handleMonthSelect(idx)}
+                    className={cn(
+                      "cursor-pointer rounded-sm px-2 py-1.5 text-[13px] font-medium transition-colors",
+                      isSelected
+                        ? "bg-primary text-primary-foreground"
+                        : "text-muted-foreground hover:bg-accent hover:text-foreground"
+                    )}
+                  >
+                    {monthName}
+                  </button>
+                );
+              })}
+            </div>
           </div>
         )}
       </div>

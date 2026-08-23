@@ -3,7 +3,6 @@
 import { useRef, useState } from "react";
 import { addMonths, format, getDay, isSameMonth, startOfMonth } from "date-fns";
 import { it } from "date-fns/locale";
-import { Logo } from "@/components/ui/logo";
 import {
   ChevronLeft,
   ChevronRight,
@@ -11,12 +10,15 @@ import {
   Calendar as CalendarIcon,
   Clock,
   Briefcase,
-  AlertCircle,
   Stethoscope,
   RefreshCw,
 } from "lucide-react";
-import LogoutButton from "@/components/auth/logout-button";
 import StatsCard from "./stats-card";
+import { Alert } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
+import { Select } from "@/components/ui/input";
+import { ConfirmDialog } from "@/components/ui/dialog";
+import { useToast } from "@/components/ui/toast";
 import CalendarGrid from "./calendar-grid";
 import TimeEntryModal from "./time-entry-modal";
 import RequestLeaveModal from "../employee/request-leave-modal";
@@ -31,8 +33,6 @@ export type { TimeEntryDTO };
 
 type EmployeeDashboardProps = {
   initialEntries: TimeEntryDTO[];
-  userName: string;
-  hideHeader?: boolean;
   hideStats?: boolean;
   targetUserId?: string;
   onEntrySaved?: (updatedEntries: TimeEntryDTO[]) => void;
@@ -45,8 +45,6 @@ type EmployeeDashboardProps = {
 
 export default function TimesheetCalendar({
   initialEntries,
-  userName,
-  hideHeader = false,
   hideStats = false,
   targetUserId,
   onEntrySaved,
@@ -63,6 +61,9 @@ export default function TimesheetCalendar({
 
   const [isRequestModalOpen, setIsRequestModalOpen] = useState(false);
   const [isRecalculating, setIsRecalculating] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState<{ id: string } | null>(null);
+  const [confirmRecalculate, setConfirmRecalculate] = useState(false);
+  const toast = useToast();
   const contextMenuRef = useRef<HTMLDivElement>(null);
 
   // ──── Year/month picker constants ────
@@ -271,15 +272,24 @@ export default function TimesheetCalendar({
     if (!data.selectedDate) return;
     const entry = data.entries.find((e) => e.workDate === data.selectedDate);
     if (!entry) return;
-    if (!confirm("Sei sicuro di voler eliminare questo inserimento?")) return;
+    setConfirmDelete({ id: entry.id });
+  };
 
+  const performDelete = (entryId: string) => {
+    const entry = data.entries.find((e) => e.id === entryId);
+    if (!entry) return;
+    setConfirmDelete(null);
     data.setModalError(null);
     data.startSaving(async () => {
       try {
         const response = await fetch(`/api/hours?id=${entry.id}`, { method: "DELETE" });
         if (!response.ok) {
           const result = await response.json();
-          data.setModalError(result?.error ?? "Impossibile eliminare l'inserimento.");
+          const message = result?.error ?? "Impossibile eliminare l'inserimento.";
+          data.setModalError(message);
+          // The same failure has to reach the user when the delete was started
+          // from the context menu, where no modal is open to show the error.
+          toast({ title: message, variant: "error" });
           return;
         }
         data.setEntries((prev) => {
@@ -289,8 +299,10 @@ export default function TimesheetCalendar({
         });
         data.setIsModalOpen(false);
         data.setIsRefetching(true);
+        toast({ title: "Inserimento eliminato", variant: "success" });
       } catch {
         data.setModalError("Errore imprevisto durante l'eliminazione.");
+        toast({ title: "Errore imprevisto durante l'eliminazione", variant: "error" });
       }
     });
   };
@@ -299,8 +311,7 @@ export default function TimesheetCalendar({
 
   const handleRecalculate = async () => {
     if (!targetUserId) return;
-    if (!confirm("Ricalcolare tutte le ore del mese selezionato in base all'orario ordinario del dipendente?")) return;
-
+    setConfirmRecalculate(false);
     setIsRecalculating(true);
     data.setError(null);
     try {
@@ -381,90 +392,67 @@ export default function TimesheetCalendar({
 
   return (
     <div className="flex flex-col gap-6">
-      {/* Header */}
-      {!hideHeader && (
-        <header className="border-b border-border bg-card shadow-sm">
-          <div className="mx-auto flex max-w-7xl items-center justify-between px-4 sm:px-6 py-4">
-            <div className="flex items-center gap-6">
-              <Logo className="h-9 w-auto" />
-              <div className="hidden sm:block">
-                <h1 className="text-lg font-semibold text-foreground">
-                  Benvenuto, {userName.split(" ")[0] ?? userName}
-                </h1>
-                <p className="text-sm text-muted-foreground">Gestisci le tue ore di lavoro</p>
-              </div>
-            </div>
-            <LogoutButton />
-          </div>
-        </header>
-      )}
-
-      <div className={cn(
-        "flex flex-col gap-6",
-        hideHeader ? "w-full pb-8" : "mx-auto w-full max-w-7xl px-4 sm:px-6 py-8"
-      )}>
+      <div className="flex w-full flex-col gap-4">
         {/* Stats cards */}
         {!hideStats && (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 order-2 sm:order-1">
-            <StatsCard title="Totale Mese" value={data.totalHours.toFixed(1)} color="blue" icon={<Clock className="h-5 w-5" />} />
+          <div className="order-2 grid grid-cols-2 gap-3 sm:order-1 lg:grid-cols-4">
+            <StatsCard title="Totale mese" value={data.totalHours.toFixed(1)} tone="primary" icon={<Clock />} />
             {data.totalOvertime > 0 && (
-              <StatsCard title="Straordinario" value={data.totalOvertime.toFixed(1)} color="orange" icon={<Briefcase className="h-5 w-5" />} />
+              <StatsCard title="Straordinario" value={data.totalOvertime.toFixed(1)} tone="warning" icon={<Briefcase />} />
             )}
-            <StatsCard title="Ore Perm/Ferie" value={data.totalPermFerie.toFixed(1)} color="purple" icon={<CalendarIcon className="h-5 w-5" />} />
+            <StatsCard title="Permessi e ferie" value={data.totalPermFerie.toFixed(1)} tone="info" icon={<CalendarIcon />} />
             {data.totalPermesso104 > 0 && (
-              <StatsCard title="Permesso 104" value={data.totalPermesso104.toFixed(1)} color="purple" icon={<CalendarIcon className="h-5 w-5" />} />
+              <StatsCard title="Permesso 104" value={data.totalPermesso104.toFixed(1)} tone="info" icon={<CalendarIcon />} />
             )}
             {data.totalSickness > 0 && (
-              <StatsCard title="Malattia" value={data.totalSickness.toFixed(1)} color="red" icon={<Stethoscope className="h-5 w-5" />} />
+              <StatsCard title="Malattia" value={data.totalSickness.toFixed(1)} tone="danger" icon={<Stethoscope />} />
             )}
           </div>
         )}
 
         {data.error && (
-          <div className="rounded-lg border border-destructive/50 bg-destructive/10 p-4 animate-in fade-in slide-in-from-top-2 order-3 sm:order-2">
-            <div className="flex items-center gap-3">
-              <AlertCircle className="h-5 w-5 text-destructive" />
-              <p className="text-sm font-medium text-destructive">{data.error}</p>
-            </div>
-          </div>
+          <Alert variant="error" className="order-3 sm:order-2">
+            {data.error}
+          </Alert>
         )}
 
         {/* Calendar section */}
-        <section className="rounded-xl border border-border bg-card shadow-sm overflow-hidden order-1 sm:order-3">
+        <section className="order-1 overflow-hidden rounded-lg border border-border bg-card shadow-elevation-1 sm:order-3">
           {/* Calendar navigation header */}
-          <div className="border-b border-border px-4 sm:px-6 py-4 bg-muted/30">
+          <div className="border-b border-border px-4 py-3">
             <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
               <div className="relative z-20">
                 <button
                   type="button"
                   onClick={() => data.setIsMonthPickerOpen(!data.isMonthPickerOpen)}
-                  className="flex items-center gap-2 text-lg font-semibold text-foreground hover:text-primary transition-colors capitalize"
+                  className="flex cursor-pointer items-center gap-1.5 rounded-md px-1.5 py-1 text-base font-semibold capitalize tracking-tight text-foreground transition-colors hover:bg-accent"
                 >
                   <span>{format(data.currentMonth, "MMMM yyyy", { locale: it })}</span>
-                  <ChevronDown className={cn("h-5 w-5 text-muted-foreground transition-transform duration-200", data.isMonthPickerOpen && "rotate-180")} />
+                  <ChevronDown className={cn("size-4 text-muted-foreground transition-transform duration-200", data.isMonthPickerOpen && "rotate-180")} />
                 </button>
                 {data.isFetching && (
-                  <p className="absolute -bottom-5 left-0 text-[10px] text-muted-foreground animate-pulse">Aggiornamento...</p>
+                  <p className="absolute -bottom-4 left-1.5 animate-pulse text-[10px] text-muted-foreground">Aggiornamento…</p>
                 )}
 
                 {data.isMonthPickerOpen && (
                   <>
                     <div className="fixed inset-0 z-10" onClick={() => data.setIsMonthPickerOpen(false)} />
-                    <div className="absolute top-full left-0 mt-2 w-72 rounded-lg border border-border bg-popover p-4 shadow-lg animate-in fade-in zoom-in-95 duration-100 z-30">
-                      <select
+                    <div className="absolute left-0 top-full z-30 mt-2 w-72 rounded-lg border border-border bg-popover p-3 shadow-elevation-3 animate-in fade-in zoom-in-95 duration-100">
+                      <Select
+                        aria-label="Anno"
                         value={data.currentMonth.getFullYear()}
                         onChange={(e) => {
                           const newDate = new Date(data.currentMonth);
                           newDate.setFullYear(parseInt(e.target.value));
                           data.setCurrentMonth(newDate);
                         }}
-                        className="mb-4 w-full rounded-md border border-input bg-background px-3 py-2 text-sm font-medium text-foreground shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                        className="mb-3"
                       >
                         {years.map((year) => (
                           <option key={year} value={year}>{year}</option>
                         ))}
-                      </select>
-                      <div className="grid grid-cols-3 gap-2">
+                      </Select>
+                      <div className="grid grid-cols-3 gap-1.5">
                         {months.map((month, idx) => (
                           <button
                             key={idx}
@@ -475,10 +463,10 @@ export default function TimesheetCalendar({
                               data.setIsMonthPickerOpen(false);
                             }}
                             className={cn(
-                              "rounded-md px-2 py-2 text-sm font-medium transition-colors",
+                              "cursor-pointer rounded-sm px-2 py-1.5 text-[13px] font-medium capitalize transition-colors",
                               idx === data.currentMonth.getMonth()
-                                ? "bg-primary text-primary-foreground shadow-sm"
-                                : "hover:bg-accent hover:text-accent-foreground text-muted-foreground"
+                                ? "bg-primary text-primary-foreground"
+                                : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
                             )}
                           >
                             {month}
@@ -491,34 +479,49 @@ export default function TimesheetCalendar({
               </div>
               <div className="flex items-center gap-2 w-full sm:w-auto justify-between sm:justify-end">
                 {isAdmin && targetUserId && (
-                  <button
-                    type="button"
-                    onClick={handleRecalculate}
-                    disabled={isRecalculating}
-                    className="inline-flex items-center justify-center gap-1.5 rounded-lg text-sm font-medium ring-offset-background transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 border border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-300 hover:bg-amber-100 dark:hover:bg-amber-900/40 h-9 px-3 sm:px-4 py-2 mr-1 shadow-sm"
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setConfirmRecalculate(true)}
+                    loading={isRecalculating}
+                    icon={<RefreshCw />}
                     title="Ricalcola ore del mese in base all'orario ordinario"
                   >
-                    <RefreshCw className={cn("h-4 w-4", isRecalculating && "animate-spin")} />
-                    <span className="hidden sm:inline">{isRecalculating ? "Ricalcolo..." : "Ricalcola Ore"}</span>
-                  </button>
+                    <span className="hidden sm:inline">
+                      {isRecalculating ? "Ricalcolo…" : "Ricalcola ore"}
+                    </span>
+                  </Button>
                 )}
-                <button
-                  type="button"
-                  onClick={() => setIsRequestModalOpen(true)}
-                  className="inline-flex items-center justify-center rounded-lg text-sm font-medium ring-offset-background transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 bg-primary text-primary-foreground hover:bg-primary/90 h-9 px-3 sm:px-4 py-2 mr-2 shadow-md hover:shadow-lg hover:-translate-y-0.5"
-                >
+                <Button size="sm" onClick={() => setIsRequestModalOpen(true)}>
                   <span className="sm:hidden">Ferie</span>
-                  <span className="hidden sm:inline">Richiedi Ferie</span>
-                </button>
-                <div className="flex items-center gap-1 bg-card p-1 rounded-lg border border-border shadow-sm">
-                  <button type="button" onClick={() => data.setCurrentMonth((m) => addMonths(m, -1))} className="inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50 hover:bg-accent hover:text-accent-foreground h-8 w-8 text-muted-foreground">
-                    <ChevronLeft className="h-4 w-4" />
+                  <span className="hidden sm:inline">Richiedi ferie</span>
+                </Button>
+
+                {/* Month stepper: one segmented control rather than three
+                    free-floating buttons. */}
+                <div className="flex items-center rounded-md border border-border">
+                  <button
+                    type="button"
+                    aria-label="Mese precedente"
+                    onClick={() => data.setCurrentMonth((m) => addMonths(m, -1))}
+                    className="inline-flex size-8 cursor-pointer items-center justify-center rounded-l-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+                  >
+                    <ChevronLeft className="size-4" />
                   </button>
-                  <button type="button" onClick={() => data.setCurrentMonth(startOfMonth(new Date()))} className="inline-flex items-center justify-center rounded-md text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring hover:bg-accent hover:text-accent-foreground h-8 px-3 text-foreground">
+                  <button
+                    type="button"
+                    onClick={() => data.setCurrentMonth(startOfMonth(new Date()))}
+                    className="h-8 cursor-pointer border-x border-border px-3 text-xs font-medium text-foreground transition-colors hover:bg-accent"
+                  >
                     Oggi
                   </button>
-                  <button type="button" onClick={() => data.setCurrentMonth((m) => addMonths(m, 1))} className="inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50 hover:bg-accent hover:text-accent-foreground h-8 w-8 text-muted-foreground">
-                    <ChevronRight className="h-4 w-4" />
+                  <button
+                    type="button"
+                    aria-label="Mese successivo"
+                    onClick={() => data.setCurrentMonth((m) => addMonths(m, 1))}
+                    className="inline-flex size-8 cursor-pointer items-center justify-center rounded-r-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+                  >
+                    <ChevronRight className="size-4" />
                   </button>
                 </div>
               </div>
@@ -575,7 +578,7 @@ export default function TimesheetCalendar({
               data.setSelectedDate(data.contextMenu!.date);
               handleFerie(data.contextMenu!.date);
             }}
-            className="relative flex w-full cursor-default select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none hover:bg-accent hover:text-accent-foreground"
+            className="relative flex w-full cursor-pointer select-none items-center rounded-sm px-2 py-1.5 text-[13px] outline-none hover:bg-accent hover:text-accent-foreground"
           >
             Ferie
           </button>
@@ -586,7 +589,7 @@ export default function TimesheetCalendar({
               data.setSelectedDate(data.contextMenu!.date);
               handleMalattia(data.contextMenu!.date);
             }}
-            className="relative flex w-full cursor-default select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none hover:bg-accent hover:text-accent-foreground"
+            className="relative flex w-full cursor-pointer select-none items-center rounded-sm px-2 py-1.5 text-[13px] outline-none hover:bg-accent hover:text-accent-foreground"
           >
             Malattia
           </button>
@@ -597,19 +600,9 @@ export default function TimesheetCalendar({
               const date = data.contextMenu!.date;
               const entry = data.entries.find((e) => e.workDate === date);
               if (!entry) return;
-              if (!confirm("Sei sicuro di voler eliminare questo inserimento?")) return;
-              fetch(`/api/hours?id=${entry.id}`, { method: "DELETE" })
-                .then((response) => {
-                  if (response.ok) {
-                    data.setEntries((current) => current.filter((e) => e.id !== entry.id));
-                    setTimeout(() => data.setIsRefetching(true), 200);
-                  } else {
-                    alert("Errore nell'eliminazione");
-                  }
-                })
-                .catch(() => alert("Errore nell'eliminazione"));
+              setConfirmDelete({ id: entry.id });
             }}
-            className="relative flex w-full cursor-default select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none hover:bg-destructive/10 hover:text-destructive text-destructive"
+            className="relative flex w-full cursor-pointer select-none items-center rounded-sm px-2 py-1.5 text-[13px] text-destructive outline-none hover:bg-destructive-subtle"
           >
             Elimina
           </button>
@@ -617,6 +610,25 @@ export default function TimesheetCalendar({
       )}
 
       <RequestLeaveModal isOpen={isRequestModalOpen} onClose={() => setIsRequestModalOpen(false)} />
+
+      <ConfirmDialog
+        open={confirmDelete !== null}
+        onClose={() => setConfirmDelete(null)}
+        onConfirm={() => confirmDelete && performDelete(confirmDelete.id)}
+        title="Eliminare l'inserimento?"
+        description="Le ore registrate per questa giornata vengono rimosse definitivamente."
+        confirmLabel="Elimina"
+        destructive
+      />
+
+      <ConfirmDialog
+        open={confirmRecalculate}
+        onClose={() => setConfirmRecalculate(false)}
+        onConfirm={handleRecalculate}
+        title="Ricalcolare le ore del mese?"
+        description="Ogni giornata del mese selezionato viene ricalcolata in base all'orario ordinario del dipendente. Le ore inserite a mano saranno sovrascritte."
+        confirmLabel="Ricalcola"
+      />
     </div>
   );
 }

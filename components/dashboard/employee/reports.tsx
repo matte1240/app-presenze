@@ -8,7 +8,9 @@ import { downloadBlob } from "@/lib/utils/file-utils";
 import { Card } from "@/components/ui/card";
 import { Alert } from "@/components/ui/alert";
 import { MonthPicker } from "@/components/ui/month-picker";
-import { Spinner } from "@/components/ui/spinner";
+import { Button } from "@/components/ui/button";
+import { Label } from "@/components/ui/input";
+import { PageContainer, PageHeader } from "@/components/layout/page";
 
 type EmployeeReportsProps = {
   userId: string;
@@ -56,70 +58,44 @@ export default function UserReports({
     }
   };
 
+  const monthLabel = format(new Date(selectedMonth + "-15"), "MMMM yyyy", {
+    locale: it,
+  });
+
   return (
-    <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-8">
-      {/* Month Selector */}
-      <div className="mb-6">
-        <Card>
-          <label className="block text-sm font-medium text-foreground mb-3">
-            Seleziona mese:
-          </label>
-          <div className="w-full sm:w-64">
-            <MonthPicker value={selectedMonth} onChange={setSelectedMonth} />
-          </div>
-        </Card>
-      </div>
+    <PageContainer>
+      <PageHeader
+        title="Report"
+        description="Scarica in Excel il riepilogo delle tue ore."
+      />
 
-      {/* Error Message */}
-      {error && (
-        <Alert variant="error" className="mb-6">{error}</Alert>
-      )}
+      {error && <Alert variant="error" className="mb-4">{error}</Alert>}
 
-      {/* Export Section */}
-      <Card>
-        <div className="flex items-center justify-between mb-4">
-          <div>
-            <h2 className="text-lg font-semibold text-foreground flex items-center gap-2">
-              <FileText className="w-5 h-5 text-muted-foreground" />
-              Esporta Report
-            </h2>
-            <p className="text-sm text-muted-foreground mt-1">
-              Scarica il report delle tue ore lavorate per {format(new Date(selectedMonth + "-15"), "MMMM yyyy", { locale: it })}
+      <Card className="space-y-5">
+        <div className="max-w-xs space-y-1.5">
+          <Label>Mese</Label>
+          <MonthPicker value={selectedMonth} onChange={setSelectedMonth} />
+        </div>
+
+        <div className="flex flex-wrap items-end justify-between gap-3 border-t border-border pt-4">
+          <div className="min-w-0">
+            <p className="flex items-center gap-2 text-sm font-medium text-foreground">
+              <FileText className="size-4 text-muted-foreground" />
+              Ore di {monthLabel}
+            </p>
+            <p className="mt-1 truncate text-[13px] text-muted-foreground">
+              {userName} · {userEmail}
             </p>
           </div>
-          <button
+          <Button
             onClick={handleExport}
-            disabled={isExporting}
-            className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-lg text-primary-foreground bg-primary hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary disabled:opacity-50 disabled:cursor-not-allowed transition-colors cursor-pointer"
+            loading={isExporting}
+            icon={<Download />}
           >
-            {isExporting ? (
-              <>
-                <Spinner size="sm" className="mr-2" />
-                Esportazione...
-              </>
-            ) : (
-              <>
-                <Download className="h-5 w-5 mr-2" />
-                Scarica Excel
-              </>
-            )}
-          </button>
-        </div>
-
-        {/* User Info */}
-        <div className="border-t border-border pt-4">
-          <dl className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <div>
-              <dt className="text-sm font-medium text-muted-foreground">Nome</dt>
-              <dd className="mt-1 text-sm text-foreground">{userName}</dd>
-            </div>
-            <div>
-              <dt className="text-sm font-medium text-muted-foreground">Email</dt>
-              <dd className="mt-1 text-sm text-foreground">{userEmail}</dd>
-            </div>
-          </dl>
+            {isExporting ? "Esportazione…" : "Scarica Excel"}
+          </Button>
         </div>
       </Card>
-    </div>
+    </PageContainer>
   );
 }

@@ -4,6 +4,7 @@ import { getAuthSession } from "@/lib/auth";
 import TimesheetCalendar from "@/components/dashboard/shared/timesheet-calendar";
 import UserSelector from "@/components/dashboard/shared/user-selector";
 import { serializeTimeEntry } from "@/lib/utils/serialization";
+import { PageContainer, PageHeader } from "@/components/layout/page";
 
 type PrismaEntry = {
   id: string;
@@ -127,19 +128,27 @@ export default async function CalendarPage({
   const plain = entries.map(serializeTimeEntry);
 
   return (
-    <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-6">
-      {isAdmin && (
-        <UserSelector users={users} selectedUserId={targetUserId} />
-      )}
-      
+    <PageContainer width="wide">
+      <PageHeader
+        title={isAdmin ? "Calendario" : `Ciao, ${targetUserName.split(" ")[0]}`}
+        description={
+          isAdmin
+            ? "Ore registrate, assenze e richieste del mese."
+            : "Registra le tue ore e tieni sotto controllo il mese."
+        }
+        actions={
+          isAdmin ? (
+            <UserSelector users={users} selectedUserId={targetUserId} />
+          ) : undefined
+        }
+      />
+
       <TimesheetCalendar
         initialEntries={plain}
-        userName={targetUserName}
-        hideHeader={true}
         targetUserId={isAdmin ? targetUserId : undefined}
         userFeatures={targetUserFeatures}
         isAdmin={isAdmin}
       />
-    </div>
+    </PageContainer>
   );
 }

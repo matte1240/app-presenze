@@ -8,7 +8,11 @@ import { downloadBlob } from "@/lib/utils/file-utils";
 import { Card } from "@/components/ui/card";
 import { Alert } from "@/components/ui/alert";
 import { MonthPicker } from "@/components/ui/month-picker";
-import { Spinner } from "@/components/ui/spinner";
+import { Button } from "@/components/ui/button";
+import { EmptyState } from "@/components/ui/empty-state";
+import { Label } from "@/components/ui/input";
+import { Skeleton } from "@/components/ui/skeleton";
+import { PageContainer, PageHeader } from "@/components/layout/page";
 
 type UserWithHours = User & {
   regularHours: number;
@@ -150,133 +154,125 @@ export default function AdminReports({ users }: ExportDataProps) {
 
   // Totali rimossi perché le card riepilogative sono state eliminate
 
-  return (
-    <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-8">
-      <div className="mb-6">
-        <h2 className="text-2xl font-bold text-foreground">Esporta dati dipendenti</h2>
-        <p className="mt-2 text-sm text-muted-foreground">
-          Seleziona i dipendenti e un mese per esportare le loro ore di lavoro. Verrà esportato in Excel.
-        </p>
-      </div>
+  const selectionCount = selectedUserIds.size;
 
-      <Card>
-        {/* Selettore mese */}
-        <div className="mb-6">
-          <label className="block text-sm font-semibold text-foreground mb-2">
-            Seleziona mese
-          </label>
-          <div className="w-full max-w-xs">
-            <MonthPicker value={selectedMonth} onChange={setSelectedMonth} />
-          </div>
+  return (
+    <PageContainer>
+      <PageHeader
+        title="Report"
+        description="Seleziona un mese e i dipendenti da includere nell'esportazione Excel."
+      />
+
+      <Card className="space-y-5">
+        <div className="max-w-xs space-y-1.5">
+          <Label>Mese</Label>
+          <MonthPicker value={selectedMonth} onChange={setSelectedMonth} />
         </div>
 
-        {/* User selection */}
         <div>
-          <div className="mb-4 flex items-center justify-between">
-            <h3 className="text-lg font-semibold text-foreground">Seleziona dipendenti</h3>
-            <div className="flex gap-2">
-              <button
-                type="button"
-                onClick={handleSelectAll}
-                className="text-sm font-medium text-primary hover:text-primary/80 transition cursor-pointer"
-              >
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+            <h3 className="text-sm font-semibold text-foreground">Dipendenti</h3>
+            <div className="flex items-center gap-1">
+              <Button size="sm" variant="ghost" onClick={handleSelectAll}>
                 Seleziona tutti
-              </button>
-              <span className="text-muted-foreground">|</span>
-              <button
-                type="button"
-                onClick={handleClearAll}
-                className="text-sm font-medium text-muted-foreground hover:text-foreground transition cursor-pointer"
-              >
-                Deseleziona tutti
-              </button>
+              </Button>
+              <Button size="sm" variant="ghost" onClick={handleClearAll}>
+                Deseleziona
+              </Button>
             </div>
           </div>
 
           {isLoadingMonthHours ? (
-            <div className="flex items-center justify-center py-12">
-              <div className="text-center">
-                <Spinner size="lg" />
-                <p className="mt-4 text-sm text-muted-foreground">Caricamento ore...</p>
-              </div>
+            <div className="space-y-2">
+              {[0, 1, 2].map((i) => (
+                <Skeleton key={i} className="h-14 w-full" />
+              ))}
             </div>
+          ) : usersWithMonthHours.length === 0 ? (
+            <EmptyState
+              compact
+              icon={<Download />}
+              title="Nessun dipendente"
+              description="Non ci sono dipendenti da esportare per il mese selezionato."
+            />
           ) : (
-            <div className="space-y-2 max-h-96 overflow-y-auto pr-2">
+            <div className="scrollbar-slim max-h-96 space-y-1.5 overflow-y-auto pr-1">
               {usersWithMonthHours.map((user) => {
                 const permessoVacation = user.permessoHours + user.vacationHours;
+                const selected = selectedUserIds.has(user.id);
                 return (
                   <label
                     key={user.id}
                     className={cn(
-                      "flex items-center gap-3 rounded-lg border border-border p-4 cursor-pointer transition hover:bg-muted/50",
-                      selectedUserIds.has(user.id) && "border-primary/50 bg-primary/5"
+                      "flex cursor-pointer items-center gap-3 rounded-md border p-3 transition-colors",
+                      selected
+                        ? "border-primary/40 bg-primary/5"
+                        : "border-border hover:bg-accent/40"
                     )}
                   >
                     <input
                       type="checkbox"
-                      checked={selectedUserIds.has(user.id)}
+                      checked={selected}
                       onChange={() => handleToggleUser(user.id)}
-                      className="h-5 w-5 rounded border-input text-primary focus:ring-2 focus:ring-primary/20 cursor-pointer"
+                      className="size-4 shrink-0 cursor-pointer accent-[hsl(var(--primary))]"
                     />
-                    <div className="flex-1">
-                      <div className="font-semibold text-foreground">{user.name || user.email}</div>
+                    <div className="min-w-0 flex-1">
+                      <div className="truncate text-[13px] font-medium text-foreground">
+                        {user.name || user.email}
+                      </div>
                       {user.name && (
-                        <div className="text-sm text-muted-foreground">{user.email}</div>
+                        <div className="truncate text-xs text-muted-foreground">
+                          {user.email}
+                        </div>
                       )}
                     </div>
-                    <div className="text-right">
-                      <div className="text-sm font-medium text-foreground">
+                    {/* The breakdown is secondary to the total, so it sits in
+                        one muted line instead of a stack of coloured ones. */}
+                    <div className="shrink-0 text-right">
+                      <div className="text-[13px] font-medium tabular-nums text-foreground">
                         {(user.regularHours + user.overtimeHours).toFixed(1)}h
                       </div>
-                      {user.overtimeHours > 0 && (
-                        <div className="text-xs text-orange-600 dark:text-orange-400">
-                          +{user.overtimeHours.toFixed(1)}h straordinarie
-                        </div>
-                      )}
-                      {permessoVacation > 0 && (
-                        <div className="text-xs text-purple-600 dark:text-purple-400">
-                          {permessoVacation.toFixed(1)}h permesso/ferie
-                        </div>
-                      )}
-                      {user.sicknessHours > 0 && (
-                        <div className="text-xs text-red-600 dark:text-red-400">
-                          {user.sicknessHours.toFixed(1)}h malattia
-                        </div>
-                      )}
+                      <div className="text-xs text-muted-foreground">
+                        {[
+                          user.overtimeHours > 0
+                            ? `+${user.overtimeHours.toFixed(1)} str.`
+                            : null,
+                          permessoVacation > 0
+                            ? `${permessoVacation.toFixed(1)} perm.`
+                            : null,
+                          user.sicknessHours > 0
+                            ? `${user.sicknessHours.toFixed(1)} mal.`
+                            : null,
+                        ]
+                          .filter(Boolean)
+                          .join(" · ") || "—"}
+                      </div>
                     </div>
                   </label>
                 );
               })}
-              {usersWithMonthHours.length === 0 && (
-                <div className="text-center py-8 text-muted-foreground">
-                  Nessun dipendente trovato
-                </div>
-              )}
             </div>
           )}
 
-          {selectedUserIds.size > 0 && (
-            <div className="mt-6 flex items-center justify-between rounded-lg bg-primary/10 p-4 border border-primary/20">
-              <div className="text-sm font-medium text-primary">
-                {selectedUserIds.size} dipendente{selectedUserIds.size > 1 ? 'i' : ''} selezionat{selectedUserIds.size > 1 ? 'i' : 'o'}
-              </div>
-              <button
-                type="button"
+          {selectionCount > 0 && (
+            <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-md border border-border bg-muted/40 p-3">
+              <span className="text-[13px] text-muted-foreground">
+                {selectionCount} dipendent{selectionCount > 1 ? "i" : "e"} selezionat
+                {selectionCount > 1 ? "i" : "o"}
+              </span>
+              <Button
                 onClick={handleExport}
-                disabled={isExporting}
-                className="rounded-lg bg-primary px-6 py-3 text-sm font-semibold text-primary-foreground shadow-md transition hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50 flex items-center gap-2 cursor-pointer"
+                loading={isExporting}
+                icon={<Download />}
               >
-                {isExporting ? <Spinner size="sm" /> : <Download className="h-5 w-5" />}
-                {isExporting ? 'Esportazione...' : 'Esporta in Excel'}
-              </button>
+                {isExporting ? "Esportazione…" : "Esporta in Excel"}
+              </Button>
             </div>
           )}
 
-          {error && (
-            <Alert variant="error" className="mt-4">{error}</Alert>
-          )}
+          {error && <Alert variant="error" className="mt-4">{error}</Alert>}
         </div>
       </Card>
-    </div>
+    </PageContainer>
   );
 }

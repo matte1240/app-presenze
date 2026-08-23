@@ -36,16 +36,16 @@ export default function CalendarGrid({
   onContextMenu,
 }: CalendarGridProps) {
   return (
-    <div className="p-4 sm:p-6 bg-card">
-      <div className="grid grid-cols-7 gap-2 text-center text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">
+    <div className="bg-card p-3 sm:p-4">
+      <div className="mb-1 grid grid-cols-7 gap-1 text-center text-[11px] font-medium text-muted-foreground sm:gap-2">
         {["Lun", "Mar", "Mer", "Gio", "Ven", "Sab", "Dom"].map((day) => (
-          <div key={day} className="py-2">
+          <div key={day} className="py-1.5">
             {day}
           </div>
         ))}
       </div>
 
-      <div className="grid grid-cols-7 gap-1 sm:gap-3">
+      <div className="grid grid-cols-7 gap-1 sm:gap-2">
         {calendarDays.map((day) => (
           <DayCell
             key={format(day, "yyyy-MM-dd")}
@@ -174,35 +174,30 @@ function DayCell({
       }}
       disabled={!isEditable}
       className={cn(
-        "flex min-h-[80px] sm:min-h-[110px] flex-col rounded-xl border p-2 sm:p-3 text-left transition-all duration-200 relative group overflow-hidden",
+        "group relative flex min-h-[68px] flex-col overflow-hidden rounded-md border p-2 text-left sm:min-h-[92px]",
+        "transition-[background-color,border-color] duration-150",
         isSameMonth(day, currentMonth)
           ? isEditable
-            ? "border-border bg-card hover:border-primary/50 hover:shadow-lg hover:-translate-y-1 cursor-pointer"
-            : "border-border/40 bg-muted/20 text-muted-foreground cursor-not-allowed"
-          : "border-transparent bg-transparent text-muted-foreground/20",
-        highlight &&
-          "ring-2 ring-primary ring-offset-2 ring-offset-background shadow-xl z-10 bg-primary/5",
-        (isSunday || isHolidayDay) &&
+            ? "cursor-pointer border-border bg-card hover:border-muted-foreground/30 hover:bg-accent/40"
+            : "cursor-not-allowed border-border/50 bg-muted/30 text-muted-foreground"
+          : "border-transparent bg-transparent text-muted-foreground/25",
+        // Non-working days recede into the muted surface instead of each
+        // picking up their own tint. Saturday and Sunday reading as two
+        // different colours told the user nothing the layout did not.
+        (isSaturday || isSunday || isHolidayDay) &&
           isSameMonth(day, currentMonth) &&
-          "bg-red-50/30 dark:bg-red-950/10 border-red-100/50 dark:border-red-900/20",
-        isSaturday &&
-          isSameMonth(day, currentMonth) &&
-          "bg-blue-50/30 dark:bg-blue-950/10 border-blue-100/50 dark:border-blue-900/20",
-        pendingRequest &&
-          "bg-yellow-50/50 dark:bg-yellow-950/10 border-yellow-100 dark:border-yellow-900/20"
+          "border-border/50 bg-muted/40",
+        pendingRequest && isSameMonth(day, currentMonth) && "bg-warning-subtle",
+        // Today is marked with the accent border alone: an offset ring lifted
+        // the cell out of the grid and broke the alignment of the whole row.
+        highlight && "border-primary ring-1 ring-inset ring-primary"
       )}
     >
-      <div className="flex items-center justify-between mb-2 w-full">
+      <div className="mb-1 flex w-full items-center justify-between">
         <div className="flex items-center gap-1.5">
-          {isMissingEntry && (
-            <div
-              className="w-2 h-2 rounded-full bg-destructive animate-pulse"
-              title="Mancato inserimento"
-            />
-          )}
           <span
             className={cn(
-              "text-xs sm:text-sm font-semibold",
+              "text-xs font-medium tabular-nums",
               highlight
                 ? "text-primary"
                 : "text-muted-foreground group-hover:text-foreground"
@@ -210,20 +205,28 @@ function DayCell({
           >
             {format(day, "d")}
           </span>
+          {/* A steady dot, not a pulsing one: on a month with several gaps a
+              row of blinking dots is noise rather than a signal. */}
+          {isMissingEntry && (
+            <span
+              className="size-1.5 rounded-full bg-destructive"
+              title="Mancato inserimento"
+            />
+          )}
         </div>
-        <div className="flex gap-1">
+        <div className="flex gap-0.5">
           {isFerie && (
-            <span className="flex h-5 w-5 items-center justify-center rounded-full bg-emerald-100 dark:bg-emerald-900/30 text-[10px] font-bold text-emerald-600 dark:text-emerald-400">
+            <span className="flex h-4 items-center justify-center rounded-sm px-1 text-[10px] font-semibold leading-none bg-success-subtle text-success" title="Ferie">
               F
             </span>
           )}
           {isMalattia && (
-            <span className="flex h-5 w-5 items-center justify-center rounded-full bg-rose-100 dark:bg-rose-900/30 text-[10px] font-bold text-rose-600 dark:text-rose-400">
+            <span className="flex h-4 items-center justify-center rounded-sm px-1 text-[10px] font-semibold leading-none bg-destructive-subtle text-destructive" title="Malattia">
               M
             </span>
           )}
           {isPermesso && (
-            <span className="flex h-5 min-w-[1.25rem] px-1 items-center justify-center rounded-full bg-yellow-100 dark:bg-yellow-900/30 text-[10px] font-bold text-yellow-600 dark:text-yellow-400">
+            <span className="flex h-4 items-center justify-center rounded-sm px-1 text-[10px] font-semibold leading-none bg-warning-subtle text-warning" title="Permesso">
               {hasEntries && permessoHours > 0
                 ? permessoHours === 8
                   ? "P"
@@ -236,12 +239,12 @@ function DayCell({
             </span>
           )}
           {isPermesso104 && (
-            <span className="flex h-5 min-w-[1.25rem] px-1 items-center justify-center rounded-full bg-purple-100 dark:bg-purple-900/30 text-[10px] font-bold text-purple-600 dark:text-purple-400">
+            <span className="flex h-4 items-center justify-center rounded-sm px-1 text-[10px] font-semibold leading-none bg-info-subtle text-info" title="Permesso 104">
               104
             </span>
           )}
           {isPaternity && (
-            <span className="flex h-5 min-w-[1.25rem] px-1 items-center justify-center rounded-full bg-blue-100 dark:bg-blue-900/30 text-[10px] font-bold text-blue-600 dark:text-blue-400">
+            <span className="flex h-4 items-center justify-center rounded-sm px-1 text-[10px] font-semibold leading-none bg-primary/10 text-primary" title="Congedo di paternità">
               PT
             </span>
           )}
@@ -249,34 +252,28 @@ function DayCell({
       </div>
 
       {hasEntries ? (
-        <div className="flex-1 flex flex-col justify-center items-center gap-1 w-full">
-          <div className="flex flex-col items-center">
-            <div className="text-xl sm:text-2xl font-bold tracking-tight text-primary">
+        <div className="flex w-full flex-1 flex-col justify-end gap-0.5">
+          {/* Bottom-left rather than centred: the hours line up down the
+              column, so a month can be scanned vertically at a glance. */}
+          <div className="flex items-baseline gap-0.5">
+            <span className="text-base font-semibold tabular-nums leading-none tracking-tight text-foreground sm:text-lg">
               {totalHours.toFixed(1)}
-            </div>
-            <div className="text-[9px] sm:text-[10px] font-medium text-muted-foreground uppercase tracking-wider">
-              ore
-            </div>
+            </span>
+            <span className="text-[10px] text-muted-foreground">h</span>
           </div>
           {dayEntry?.notes && (
-            <div className="w-full max-w-full">
-              <p className="text-[10px] text-muted-foreground truncate w-full text-center opacity-70 px-1">
-                {dayEntry.notes}
-              </p>
-            </div>
+            <p className="w-full truncate text-[10px] text-muted-foreground">
+              {dayEntry.notes}
+            </p>
           )}
         </div>
       ) : pendingRequest ? (
-        <div className="flex-1 flex flex-col justify-center items-center">
-          <span className="text-[10px] font-medium text-yellow-700 dark:text-yellow-400 bg-yellow-100 dark:bg-yellow-900/30 px-2 py-1 rounded-full border border-yellow-200 dark:border-yellow-800">
-            In Attesa
-          </span>
+        <div className="flex flex-1 items-end">
+          <span className="text-[10px] font-medium text-warning">In attesa</span>
         </div>
       ) : (
-        <div className="flex-1 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-          <span className="text-xs text-muted-foreground/50">
-            {isEditable ? <Plus className="h-5 w-5" /> : null}
-          </span>
+        <div className="flex flex-1 items-center justify-center opacity-0 transition-opacity group-hover:opacity-100">
+          {isEditable ? <Plus className="size-4 text-muted-foreground" /> : null}
         </div>
       )}
     </button>

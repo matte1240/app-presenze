@@ -1,77 +1,76 @@
 import { ReactNode } from "react";
 import { cn } from "@/lib/utils";
+import { Skeleton } from "@/components/ui/skeleton";
 
-type ColorType = "green" | "blue" | "purple" | "red" | "orange";
+/**
+ * Semantic tones rather than raw colour names. The previous version hardcoded
+ * Tailwind palette colours (`bg-emerald-100`, `text-violet-600`), which meant
+ * these cards were the one part of the product a customer's branding could not
+ * reach.
+ */
+type Tone = "primary" | "success" | "warning" | "danger" | "info" | "neutral";
 
 type StatsCardProps = {
   title: string;
   value: string | number;
   icon: ReactNode;
-  color: ColorType;
+  tone?: Tone;
+  /** Small qualifier under the value, e.g. a unit or a comparison. */
+  hint?: string;
   isLoading?: boolean;
   className?: string;
 };
 
-const colorMap: Record<ColorType, { bg: string; text: string }> = {
-  green: {
-    bg: "bg-emerald-100 dark:bg-emerald-900/20",
-    text: "text-emerald-600 dark:text-emerald-400",
-  },
-  blue: {
-    bg: "bg-blue-100 dark:bg-blue-900/20",
-    text: "text-blue-600 dark:text-blue-400",
-  },
-  purple: {
-    bg: "bg-violet-100 dark:bg-violet-900/20",
-    text: "text-violet-600 dark:text-violet-400",
-  },
-  red: {
-    bg: "bg-rose-100 dark:bg-rose-900/20",
-    text: "text-rose-600 dark:text-rose-400",
-  },
-  orange: {
-    bg: "bg-orange-100 dark:bg-orange-900/20",
-    text: "text-orange-600 dark:text-orange-400",
-  },
+const toneStyles: Record<Tone, string> = {
+  primary: "bg-primary/10 text-primary",
+  success: "bg-success-subtle text-success",
+  warning: "bg-warning-subtle text-warning",
+  danger: "bg-destructive-subtle text-destructive",
+  info: "bg-info-subtle text-info",
+  neutral: "bg-muted text-muted-foreground",
 };
 
 export default function StatsCard({
   title,
   value,
   icon,
-  color,
+  tone = "primary",
+  hint,
   isLoading = false,
   className,
 }: StatsCardProps) {
-  const colors = colorMap[color];
-
   return (
     <div
       className={cn(
-        "group relative overflow-hidden rounded-xl border border-border/50 bg-card p-6 shadow-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-lg",
+        "rounded-lg border border-border bg-card p-4 shadow-elevation-1",
         className
       )}
     >
-      <div className="absolute inset-0 bg-gradient-to-br from-transparent via-transparent to-primary/5 opacity-0 transition-opacity group-hover:opacity-100" />
-      <div className="relative flex items-center gap-4">
-        <div
+      <div className="flex items-start justify-between gap-3">
+        <p className="text-[13px] font-medium text-muted-foreground">{title}</p>
+        <span
           className={cn(
-            "flex h-12 w-12 items-center justify-center rounded-xl shadow-sm transition-transform group-hover:scale-110",
-            colors.bg
+            "flex size-7 shrink-0 items-center justify-center rounded-md [&_svg]:size-3.5",
+            toneStyles[tone]
           )}
         >
-          <div className={cn("h-6 w-6", colors.text)}>{icon}</div>
-        </div>
-        <div className="space-y-1">
-          <p className="text-sm font-medium text-muted-foreground">{title}</p>
-          <p className="text-2xl font-bold tracking-tight text-foreground">
-            {isLoading ? (
-              <span className="animate-pulse text-muted-foreground">...</span>
-            ) : (
-              value
-            )}
+          {icon}
+        </span>
+      </div>
+
+      {/* The number is the point of the card, so it gets the weight and the
+          tight tracking, and it never shifts width as it updates. */}
+      <div className="mt-3">
+        {isLoading ? (
+          <Skeleton className="h-8 w-20" />
+        ) : (
+          <p className="text-[28px] font-semibold leading-none tracking-tight tabular-nums text-foreground">
+            {value}
           </p>
-        </div>
+        )}
+        {hint && !isLoading && (
+          <p className="mt-1.5 text-xs text-muted-foreground">{hint}</p>
+        )}
       </div>
     </div>
   );

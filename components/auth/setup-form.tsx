@@ -2,7 +2,10 @@
 
 import { useState, useTransition, FormEvent } from "react";
 import { useRouter } from "next/navigation";
-import { AlertCircle, CheckCircle2, Upload, Loader2, FileText } from "lucide-react";
+import { FileText, Upload } from "lucide-react";
+import { Alert } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
+import { Field, Input } from "@/components/ui/input";
 
 const initialState = {
   name: "",
@@ -104,134 +107,91 @@ export default function SetupForm() {
 
   if (showRestore) {
     return (
-      <div className="mt-8 space-y-6">
-        <form
-          onSubmit={handleRestore}
-          className="rounded-xl border border-border bg-card p-8 shadow-lg backdrop-blur-sm animate-in fade-in slide-in-from-bottom-4 duration-300"
-        >
-          <h3 className="mb-4 text-lg font-semibold text-foreground">
-            Restore from Backup
-          </h3>
-          <p className="mb-6 text-sm text-muted-foreground">
-            Upload a backup file (.db) to restore your database. This will replace all current data and restart the application.
-          </p>
-
-          <div className="space-y-4">
-            <div>
-              <label htmlFor="backup-file" className="block text-sm font-medium text-foreground">
-                Backup File
-              </label>
-              <div className="mt-1 flex items-center justify-center w-full">
-                <label
-                  htmlFor="backup-file"
-                  className="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed rounded-lg cursor-pointer bg-muted/50 hover:bg-muted border-border hover:border-primary/50 transition-colors"
-                >
-                  <div className="flex flex-col items-center justify-center pt-5 pb-6">
-                    <Upload className="w-8 h-8 mb-3 text-muted-foreground" />
-                    <p className="mb-2 text-sm text-muted-foreground">
-                      <span className="font-semibold">Click to upload</span> or drag and drop
-                    </p>
-                    <p className="text-xs text-muted-foreground">SQLite .db file only</p>
-                  </div>
-                  <input
-                    id="backup-file"
-                    name="backup-file"
-                    type="file"
-                    accept=".db"
-                    required
-                    onChange={(e) => setRestoreFile(e.target.files?.[0] || null)}
-                    className="hidden"
-                  />
-                </label>
-              </div>
-              {restoreFile && (
-                <p className="mt-2 text-sm text-primary font-medium flex items-center gap-2">
-                  <FileText className="h-4 w-4" />
-                  {restoreFile.name}
-                </p>
-              )}
-            </div>
+      <div className="mt-8 space-y-4">
+        <form onSubmit={handleRestore} className="space-y-4">
+          <div>
+            <h3 className="text-sm font-semibold tracking-tight text-foreground">
+              Ripristina da backup
+            </h3>
+            <p className="mt-1 text-[13px] leading-relaxed text-muted-foreground">
+              Carica un file <code className="font-mono text-xs">.db</code>{" "}
+              generato da un backup. Sostituisce tutti i dati e riavvia
+              l&apos;applicazione.
+            </p>
           </div>
 
+          <label
+            htmlFor="backup-file"
+            className="flex h-28 w-full cursor-pointer flex-col items-center justify-center gap-1.5 rounded-md border border-dashed border-border bg-muted/40 transition-colors hover:border-muted-foreground/40 hover:bg-muted/60"
+          >
+            <Upload className="size-5 text-muted-foreground" />
+            <span className="text-[13px] text-muted-foreground">
+              <span className="font-medium text-foreground">Scegli un file</span>{" "}
+              o trascinalo qui
+            </span>
+            <span className="text-xs text-muted-foreground/70">
+              Solo file SQLite .db
+            </span>
+            <input
+              id="backup-file"
+              name="backup-file"
+              type="file"
+              accept=".db"
+              required
+              onChange={(e) => setRestoreFile(e.target.files?.[0] || null)}
+              className="hidden"
+            />
+          </label>
+
+          {restoreFile && (
+            <p className="flex items-center gap-2 text-[13px] font-medium text-foreground">
+              <FileText className="size-4 text-muted-foreground" />
+              {restoreFile.name}
+            </p>
+          )}
+
           {restoreSuccess && (
-            <div className="mt-4 rounded-md bg-emerald-500/10 border border-emerald-500/20 p-4 animate-in fade-in slide-in-from-top-2">
-              <div className="flex items-center gap-2">
-                <CheckCircle2 className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
-                <p className="text-sm text-emerald-800 dark:text-emerald-200">
-                  Database restored successfully! Redirecting...
-                </p>
-              </div>
-            </div>
+            <Alert variant="success">
+              Database ripristinato. Reindirizzamento in corso…
+            </Alert>
           )}
 
-          {error && (
-            <div className="mt-4 rounded-md bg-destructive/10 border border-destructive/20 p-4 animate-in fade-in slide-in-from-top-2">
-              <div className="flex items-center gap-2">
-                <AlertCircle className="h-5 w-5 text-destructive" />
-                <p className="text-sm text-destructive" role="alert">
-                  {error}
-                </p>
-              </div>
-            </div>
-          )}
+          {error && <Alert variant="error">{error}</Alert>}
 
-          <div className="mt-6 flex gap-3">
-            <button
+          <div className="flex gap-2">
+            <Button
               type="button"
+              variant="outline"
+              className="flex-1"
+              disabled={isRestoring}
               onClick={() => {
                 setShowRestore(false);
                 setError(null);
                 setRestoreFile(null);
               }}
-              className="flex-1 rounded-md border border-input bg-background px-3 py-2 text-sm font-semibold text-foreground shadow-sm transition hover:bg-accent hover:text-accent-foreground"
-              disabled={isRestoring}
             >
-              Cancel
-            </button>
-            <button
+              Annulla
+            </Button>
+            <Button
               type="submit"
-              disabled={isRestoring || !restoreFile}
-              className="flex-1 inline-flex items-center justify-center rounded-md bg-primary px-3 py-2 text-sm font-semibold text-primary-foreground shadow-sm transition hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
+              className="flex-1"
+              loading={isRestoring}
+              disabled={!restoreFile}
             >
-              {isRestoring ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Restoring...
-                </>
-              ) : (
-                "Restore Database"
-              )}
-            </button>
+              {isRestoring ? "Ripristino…" : "Ripristina"}
+            </Button>
           </div>
         </form>
-
-        <div className="text-center">
-          <button
-            onClick={() => {
-              setShowRestore(false);
-              setError(null);
-            }}
-            className="text-sm text-primary hover:underline"
-          >
-            ← Back to Setup
-          </button>
-        </div>
       </div>
     );
   }
 
   return (
-    <form
-      onSubmit={handleSubmit}
-      className="mt-8 space-y-6 rounded-xl border border-border bg-card p-8 shadow-lg backdrop-blur-sm animate-in fade-in slide-in-from-bottom-4 duration-300"
-    >
-      <div className="space-y-4">
-        <div>
-          <label htmlFor="name" className="block text-sm font-medium text-foreground">
-            Full Name
-          </label>
-          <input
-            id="name"
+    <form onSubmit={handleSubmit} className="mt-8 space-y-4">
+      <Field label="Nome completo" htmlFor="name">
+        {(field) => (
+          <Input
+            {...field}
             name="name"
             type="text"
             required
@@ -239,17 +199,15 @@ export default function SetupForm() {
             onChange={(event) =>
               setFormState((state) => ({ ...state, name: event.target.value }))
             }
-            className="mt-1 block w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground shadow-sm outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20"
-            placeholder="John Doe"
+            placeholder="Mario Rossi"
           />
-        </div>
+        )}
+      </Field>
 
-        <div>
-          <label htmlFor="email" className="block text-sm font-medium text-foreground">
-            Email Address
-          </label>
-          <input
-            id="email"
+      <Field label="Email" htmlFor="email">
+        {(field) => (
+          <Input
+            {...field}
             name="email"
             type="email"
             autoComplete="email"
@@ -258,93 +216,75 @@ export default function SetupForm() {
             onChange={(event) =>
               setFormState((state) => ({ ...state, email: event.target.value }))
             }
-            className="mt-1 block w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground shadow-sm outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20"
-            placeholder="admin@company.com"
+            placeholder="admin@azienda.com"
           />
-        </div>
+        )}
+      </Field>
 
-        <div>
-          <label htmlFor="password" className="block text-sm font-medium text-foreground">
-            Password
-          </label>
-          <input
-            id="password"
+      <Field label="Password" hint="Minimo 8 caratteri" htmlFor="password">
+        {(field) => (
+          <Input
+            {...field}
             name="password"
             type="password"
             autoComplete="new-password"
             required
+            minLength={8}
             value={formState.password}
             onChange={(event) =>
               setFormState((state) => ({ ...state, password: event.target.value }))
             }
-            className="mt-1 block w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground shadow-sm outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20"
             placeholder="••••••••"
           />
-          <p className="mt-1 text-xs text-muted-foreground">Minimum 8 characters</p>
-        </div>
+        )}
+      </Field>
 
-        <div>
-          <label htmlFor="confirmPassword" className="block text-sm font-medium text-foreground">
-            Confirm Password
-          </label>
-          <input
-            id="confirmPassword"
+      <Field label="Conferma password" htmlFor="confirmPassword">
+        {(field) => (
+          <Input
+            {...field}
             name="confirmPassword"
             type="password"
             autoComplete="new-password"
             required
+            minLength={8}
             value={formState.confirmPassword}
             onChange={(event) =>
-              setFormState((state) => ({ ...state, confirmPassword: event.target.value }))
+              setFormState((state) => ({
+                ...state,
+                confirmPassword: event.target.value,
+              }))
             }
-            className="mt-1 block w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground shadow-sm outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20"
             placeholder="••••••••"
           />
-        </div>
-      </div>
-
-      {error ? (
-        <div className="rounded-md bg-destructive/10 border border-destructive/20 p-4 animate-in fade-in slide-in-from-top-2">
-          <div className="flex items-center gap-2">
-            <AlertCircle className="h-5 w-5 text-destructive" />
-            <p className="text-sm text-destructive" role="alert">
-              {error}
-            </p>
-          </div>
-        </div>
-      ) : null}
-
-      <button
-        type="submit"
-        disabled={isPending}
-        className="flex w-full justify-center items-center rounded-md bg-primary px-3 py-2 text-sm font-semibold text-primary-foreground shadow-sm transition hover:bg-primary/90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary disabled:cursor-not-allowed disabled:opacity-50"
-      >
-        {isPending ? (
-          <>
-            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-            Creating account...
-          </>
-        ) : (
-          "Create Administrator Account"
         )}
-      </button>
+      </Field>
 
-      <div className="relative">
+      {error && <Alert variant="error">{error}</Alert>}
+
+      <Button type="submit" size="lg" className="w-full" loading={isPending}>
+        {isPending ? "Creazione account…" : "Crea account amministratore"}
+      </Button>
+
+      <div className="relative py-1">
         <div className="absolute inset-0 flex items-center">
           <div className="w-full border-t border-border" />
         </div>
-        <div className="relative flex justify-center text-sm">
-          <span className="bg-card px-2 text-muted-foreground">Or</span>
+        <div className="relative flex justify-center">
+          <span className="bg-background px-2 text-xs text-muted-foreground">
+            oppure
+          </span>
         </div>
       </div>
 
-      <button
+      <Button
         type="button"
+        variant="outline"
+        className="w-full"
         onClick={() => setShowRestore(true)}
-        className="flex w-full justify-center rounded-md border border-input bg-background px-3 py-2 text-sm font-semibold text-foreground shadow-sm transition hover:bg-accent hover:text-accent-foreground"
       >
-        Restore from Backup
-      </button>
+        Ripristina da backup
+      </Button>
     </form>
   );
 }

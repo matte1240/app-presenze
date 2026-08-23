@@ -3,8 +3,10 @@
 import { useState, useTransition, FormEvent } from "react";
 import { signIn } from "next-auth/react";
 import { useRouter } from "next/navigation";
-import { Eye, EyeOff, Loader2, Mail, Lock } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { Eye, EyeOff, Mail, Lock } from "lucide-react";
+import { Alert } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
+import { Field, Input, Label } from "@/components/ui/input";
 
 const initialState = {
   email: "",
@@ -79,20 +81,15 @@ export default function LoginForm() {
 
   return (
     <>
-      <form onSubmit={handleSubmit} className="space-y-5">
-        <div className="space-y-2">
-          <label
-            htmlFor="email"
-            className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
-          >
-            Indirizzo Email
-          </label>
-          <div className="relative">
-            <Mail className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-            <input
-              id="email"
+      <form onSubmit={handleSubmit} className="space-y-4">
+        <Field label="Email">
+          {(field) => (
+            <Input
+              {...field}
               type="email"
               required
+              autoComplete="email"
+              icon={<Mail />}
               value={formState.email}
               onChange={(event) =>
                 setFormState((state) => ({
@@ -100,34 +97,30 @@ export default function LoginForm() {
                   email: event.target.value,
                 }))
               }
-              className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 pl-10 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
               placeholder="tua.email@azienda.com"
             />
-          </div>
-        </div>
+          )}
+        </Field>
 
-        <div className="space-y-2">
+        <div className="space-y-1.5">
           <div className="flex items-center justify-between">
-            <label
-              htmlFor="password"
-              className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
-            >
-              Password
-            </label>
+            <Label htmlFor="password">Password</Label>
             <button
               type="button"
               onClick={() => setShowForgotPassword(true)}
-              className="text-sm font-medium text-primary hover:underline"
+              className="cursor-pointer text-xs font-medium text-muted-foreground transition-colors hover:text-foreground"
             >
               Password dimenticata?
             </button>
           </div>
           <div className="relative">
-            <Lock className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-            <input
+            <Input
               id="password"
               type={showPassword ? "text" : "password"}
               required
+              autoComplete="current-password"
+              icon={<Lock />}
+              className="pr-9"
               value={formState.password}
               onChange={(event) =>
                 setFormState((state) => ({
@@ -135,114 +128,94 @@ export default function LoginForm() {
                   password: event.target.value,
                 }))
               }
-              className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 pl-10 pr-10 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
               placeholder="••••••••"
             />
             <button
               type="button"
               onClick={() => setShowPassword(!showPassword)}
-              className="absolute right-3 top-3 text-muted-foreground hover:text-foreground transition-colors"
+              aria-label={showPassword ? "Nascondi password" : "Mostra password"}
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 cursor-pointer rounded-sm p-0.5 text-muted-foreground transition-colors hover:text-foreground"
             >
               {showPassword ? (
-                <EyeOff className="h-4 w-4" />
+                <EyeOff className="size-4" />
               ) : (
-                <Eye className="h-4 w-4" />
+                <Eye className="size-4" />
               )}
             </button>
           </div>
         </div>
 
-        {error && (
-          <div className="rounded-md bg-destructive/15 p-3 text-sm text-destructive">
-            {error}
-          </div>
-        )}
+        {error && <Alert variant="error">{error}</Alert>}
 
-        <button
-          type="submit"
-          disabled={isPending}
-          className="inline-flex h-10 w-full items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground ring-offset-background transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50"
-        >
-          {isPending ? (
-            <>
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              Accesso in corso...
-            </>
-          ) : (
-            "Accedi"
-          )}
-        </button>
+        <Button type="submit" size="lg" loading={isPending} className="w-full">
+          {isPending ? "Accesso in corso…" : "Accedi"}
+        </Button>
       </form>
 
       {/* Forgot Password Modal */}
       {showForgotPassword && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm">
-          <div className="w-full max-w-md rounded-lg border border-border bg-card p-6 shadow-lg animate-in fade-in zoom-in duration-200">
-            <h3 className="text-lg font-semibold leading-none tracking-tight mb-2">
-              Recupera Password
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="forgot-title"
+          className="fixed inset-0 z-50 flex items-center justify-center p-4"
+        >
+          <div
+            className="absolute inset-0 bg-foreground/25 backdrop-blur-[2px] animate-in fade-in duration-150"
+            onClick={() => setShowForgotPassword(false)}
+          />
+          <div className="relative w-full max-w-sm rounded-lg border border-border bg-card p-5 shadow-elevation-3 animate-in fade-in zoom-in-95 duration-150">
+            <h3
+              id="forgot-title"
+              className="text-sm font-semibold tracking-tight text-foreground"
+            >
+              Recupera password
             </h3>
-            <p className="text-sm text-muted-foreground mb-4">
-              Inserisci la tua email per ricevere un link di reset.
+            <p className="mt-1 text-[13px] text-muted-foreground">
+              Inserisci la tua email: ti invieremo un link per impostarne una nuova.
             </p>
 
-            <form onSubmit={handleForgotPassword} className="space-y-4">
-              <div className="space-y-2">
-                <label
-                  htmlFor="reset-email"
-                  className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
-                >
-                  Email
-                </label>
-                <input
-                  id="reset-email"
-                  type="email"
-                  required
-                  value={forgotPasswordEmail}
-                  onChange={(e) => setForgotPasswordEmail(e.target.value)}
-                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                  placeholder="tua.email@azienda.com"
-                />
-              </div>
+            <form onSubmit={handleForgotPassword} className="mt-4 space-y-3">
+              <Field label="Email">
+                {(field) => (
+                  <Input
+                    {...field}
+                    type="email"
+                    required
+                    autoComplete="email"
+                    icon={<Mail />}
+                    value={forgotPasswordEmail}
+                    onChange={(e) => setForgotPasswordEmail(e.target.value)}
+                    placeholder="tua.email@azienda.com"
+                  />
+                )}
+              </Field>
 
               {forgotPasswordMessage && (
-                <div
-                  className={cn(
-                    "rounded-md p-3 text-sm",
-                    forgotPasswordMessage.includes("Errore")
-                      ? "bg-destructive/15 text-destructive"
-                      : "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400"
-                  )}
+                <Alert
+                  variant={
+                    forgotPasswordMessage.includes("Errore") ? "error" : "success"
+                  }
                 >
                   {forgotPasswordMessage}
-                </div>
+                </Alert>
               )}
 
-              <div className="flex justify-end gap-3">
-                <button
+              <div className="flex justify-end gap-2 pt-1">
+                <Button
                   type="button"
+                  variant="ghost"
                   onClick={() => {
                     setShowForgotPassword(false);
                     setForgotPasswordMessage(null);
                     setForgotPasswordEmail("");
                   }}
-                  className="inline-flex h-10 items-center justify-center rounded-md border border-input bg-background px-4 py-2 text-sm font-medium ring-offset-background transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50"
                 >
                   Annulla
-                </button>
-                <button
-                  type="submit"
-                  disabled={isSendingEmail}
-                  className="inline-flex h-10 items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground ring-offset-background transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50"
-                >
-                  {isSendingEmail ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Invio...
-                    </>
-                  ) : (
-                    "Invia Link"
-                  )}
-                </button>
+                </Button>
+                <Button type="submit" loading={isSendingEmail}>
+                  {isSendingEmail ? "Invio…" : "Invia link"}
+                </Button>
               </div>
             </form>
           </div>

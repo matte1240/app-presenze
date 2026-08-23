@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect } from "react";
+import { AlertTriangle } from "lucide-react";
+import { Button } from "@/components/ui/button";
 
 export default function Error({
   error,
@@ -14,27 +16,33 @@ export default function Error({
   }, [error]);
 
   return (
-    <div className="min-h-[60vh] flex items-center justify-center p-4">
-      <div className="text-center max-w-md">
-        <h2 className="text-2xl font-bold text-foreground mb-4">
+    <div className="flex min-h-[60vh] items-center justify-center p-4">
+      <div className="flex max-w-sm flex-col items-center text-center">
+        <span className="flex size-12 items-center justify-center rounded-full bg-destructive-subtle text-destructive">
+          <AlertTriangle className="size-5" />
+        </span>
+        <h2 className="mt-4 text-lg font-semibold tracking-tight text-foreground">
           Si è verificato un errore
         </h2>
-        <p className="text-muted-foreground mb-6">
-          Qualcosa è andato storto nel caricamento della pagina.
+        <p className="mt-1.5 text-sm text-muted-foreground">
+          Qualcosa è andato storto nel caricamento della pagina. Riprova, oppure
+          torna alla dashboard.
         </p>
-        <div className="flex gap-3 justify-center">
-          <button
-            onClick={() => reset()}
-            className="px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:opacity-90 transition-opacity"
-          >
-            Riprova
-          </button>
-          <button
+        {/* The digest is the only handle support has on a production stack
+            trace, so it is shown rather than swallowed. */}
+        {error.digest && (
+          <p className="mt-3 font-mono text-xs text-muted-foreground/70">
+            {error.digest}
+          </p>
+        )}
+        <div className="mt-5 flex gap-2">
+          <Button onClick={() => reset()}>Riprova</Button>
+          <Button
+            variant="outline"
             onClick={() => (window.location.href = "/dashboard")}
-            className="px-4 py-2 bg-muted text-muted-foreground rounded-lg hover:opacity-80 transition-opacity"
           >
             Torna alla dashboard
-          </button>
+          </Button>
         </div>
       </div>
     </div>
