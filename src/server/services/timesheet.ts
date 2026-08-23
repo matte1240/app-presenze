@@ -120,14 +120,15 @@ export interface SaveArgs {
   userId: string;
   actorId: string;
   input: DayInput;
-  week: WeekSchedule;
+  /** Computed by the caller so quotas can be checked against it first. */
+  breakdown: DayBreakdown;
   notes: string | null;
   medicalCertificate: string | null;
 }
 
 /** One row per user per day: saving the same date again replaces it. */
 export async function saveEntry(args: SaveArgs): Promise<{ row: TimeEntryRow; created: boolean }> {
-  const breakdown = computeDay(args.input, args.week, { holidays: holidayConfig });
+  const { breakdown } = args;
   const existing = await entryOn(args.userId, args.input.date);
 
   const values = {
