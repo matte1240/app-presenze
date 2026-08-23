@@ -6,6 +6,8 @@
 FROM node:25-alpine AS prod-deps
 WORKDIR /app
 
+RUN apk add --no-cache python3 make g++
+
 COPY package.json package-lock.json* ./
 COPY prisma ./prisma
 COPY prisma.config.ts ./
@@ -23,12 +25,14 @@ RUN find node_modules/better-sqlite3/prebuilds -type f \
 FROM node:25-alpine AS builder
 WORKDIR /app
 
+RUN apk add --no-cache python3 make g++
+
 COPY package.json package-lock.json* ./
 COPY prisma ./prisma
 COPY prisma.config.ts ./
 
 # Install ALL dependencies (needed to compile)
-RUN npm install && npm cache clean --force
+RUN npm ci && npm cache clean --force
 
 COPY . .
 
