@@ -127,6 +127,45 @@
 }
 
 /*
+  Chart series — a categorical palette, not a set of decorative colours.
+
+  The order is the colourblind-safety mechanism and is not cosmetic: these five
+  slots were run through the palette validator against this product's own
+  surfaces and clear the lightness band, the chroma floor, adjacent-pair CVD
+  separation and the normal-vision floor in both modes. Reordering them, or
+  adding a sixth by picking something that "looks nice", breaks that guarantee.
+
+  Slot 1 is the product's own accent, so the dominant series in a chart is the
+  same blue as the interface around it.
+
+  In light mode aqua, yellow and magenta sit below 3:1 against white. That is a
+  known and accepted step, on the condition that identity never rests on colour
+  alone — every chart here ships a legend and the same figures appear in a
+  table on the page.
+*/
+:root {
+  --series-1: #3c61dd;
+  --series-2: #eb6834;
+  --series-3: #1baf7a;
+  --series-4: #eda100;
+  --series-5: #e87ba4;
+
+  /* Chart chrome: recessive by design — the data is the only loud thing. */
+  --grid-line: 240 10% 92%;
+}
+
+.dark {
+  /* The same five hues re-stepped for the dark surface, not an automatic flip. */
+  --series-1: #6383ee;
+  --series-2: #d95926;
+  --series-3: #199e70;
+  --series-4: #c98500;
+  --series-5: #d55181;
+
+  --grid-line: 240 8% 18%;
+}
+
+/*
   Almost nothing floats. Cards and tables are separated by a hairline, not by a
   shadow; only genuinely overlaid surfaces cast one. Dropping the shadow from
   every panel is the single change that removes most of the template look.
@@ -178,6 +217,13 @@
   --color-border-strong: hsl(var(--border-strong));
   --color-input: hsl(var(--input));
   --color-ring: hsl(var(--ring));
+
+  --color-series-1: var(--series-1);
+  --color-series-2: var(--series-2);
+  --color-series-3: var(--series-3);
+  --color-series-4: var(--series-4);
+  --color-series-5: var(--series-5);
+  --color-grid-line: hsl(var(--grid-line));
 
   /* An explicit type scale. Sizes are named for their role, so a component
      asks for `text-micro` rather than guessing at a pixel value. */

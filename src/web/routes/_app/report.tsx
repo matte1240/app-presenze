@@ -6,16 +6,20 @@ import { monthOf, monthRange, todayIn, toYearMonth, type LocalDate } from "@core
 import { roundHours } from "@core/time";
 import { ApiError } from "../../api/client";
 import { exportExcel } from "../../api/admin";
-import { entriesQuery } from "../../api/timesheet";
+import { entriesQuery, type TimeEntry } from "../../api/timesheet";
 import { usersQuery } from "../../api/users";
+import { bucketsOf, dailyColumns, HOUR_SERIES, roundBucket } from "../../features/reports/month-series";
 import { t } from "../../i18n/it";
 import {
   Button,
   Card,
   CardHeader,
+  ChartLegend,
   Checkbox,
   MonthPicker,
   SkeletonRows,
+  StackedBar,
+  StackedColumns,
   SummaryBar,
   Table,
   TableWrapper,
@@ -46,39 +50,39 @@ function ReportsPage() {
   // it need to — a month of entries is small.
   const entries = useQuery(entriesQuery(isAdmin ? "all" : user.id, from, to));
 
+  const monthEntries = useMemo(() => entries.data ?? [], [entries.data]);
+
   const rows = useMemo(() => {
     const list = isAdmin ? (people.data ?? []) : [{ id: user.id, name: user.name }];
-    const byUser = new Map<string, { regular: number; overtime: number; leave: number; vacation: number; sickness: number }>();
+    const byUser = new Map<string, TimeEntry[]>();
 
-    for (const entry of entries.data ?? []) {
-      const acc = byUser.get(entry.userId) ?? { regular: 0, overtime: 0, leave: 0, vacation: 0, sickness: 0 };
-      acc.regular += entry.regularHours;
-      acc.overtime += entry.overtimeHours;
-      acc.leave += entry.leaveHours + entry.leave104Hours;
-      acc.vacation += entry.vacationHours;
-      acc.sickness += entry.sicknessHours;
-      byUser.set(entry.userId, acc);
+    for (const entry of monthEntries) {
+      const bucket = byUser.get(entry.userId);
+      if (bucket) bucket.push(entry);
+      else byUser.set(entry.userId, [entry]);
     }
 
+    // Shared with the chart, so the two cannot disagree. The version this
+    // replaces dropped parental-leave hours on the floor.
     return list.map((person) => {
-      const acc = byUser.get(person.id) ?? { regular: 0, overtime: 0, leave: 0, vacation: 0, sickness: 0 };
+      const totals = roundBucket(bucketsOf(byUser.get(person.id) ?? []));
       return {
         id: person.id,
         name: person.name,
-        regular: roundHours(acc.regular),
-        overtime: roundHours(acc.overtime),
-        leave: roundHours(acc.leave),
-        vacation: roundHours(acc.vacation),
-        sickness: roundHours(acc.sickness),
+        totals,
+        total: roundHours(totals.regular + totals.overtime + totals.leave + totals.vacation + totals.sickness),
       };
     });
-  }, [entries.data, people.data, isAdmin, user]);
+  }, [monthEntries, people.data, isAdmin, user]);
+
+  const columns = useMemo(() => dailyColumns(month, monthEntries), [month, monthEntries]);
+  const widestRow = useMemo(() => Math.max(...rows.map((r) => r.total), 0), [rows]);
 
   const teamTotals = useMemo(
     () => ({
-      regular: roundHours(rows.reduce((s, r) => s + r.regular, 0)),
-      overtime: roundHours(rows.reduce((s, r) => s + r.overtime, 0)),
-      leave: roundHours(rows.reduce((s, r) => s + r.leave + r.vacation, 0)),
+      regular: roundHours(rows.reduce((s, r) => s + r.totals.regular, 0)),
+      overtime: roundHours(rows.reduce((s, r) => s + r.totals.overtime, 0)),
+      leave: roundHours(rows.reduce((s, r) => s + r.totals.leave + r.totals.vacation, 0)),
     }),
     [rows],
   );
@@ -128,6 +132,22 @@ function ReportsPage() {
         ]}
       />
 
+      <section className="space-y-2">
+        <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+          <div>
+            <h3 className="text-body font-semibold">{t.reports.dailyTrend}</h3>
+            <p className="text-micro text-muted-foreground">{t.reports.dailyTrendHint}</p>
+          </div>
+          <ChartLegend series={HOUR_SERIES} />
+        </div>
+
+        {entries.isLoading ? (
+          <SkeletonRows rows={1} className="[&>*]:h-[240px]" />
+        ) : (
+          <StackedColumns columns={columns} series={HOUR_SERIES} emptyLabel={t.reports.noData} />
+        )}
+      </section>
+
       <Card>
         <CardHeader
           title={t.reports.team}
@@ -157,7 +177,8 @@ function ReportsPage() {
                   <TH numeric>{t.timesheet.overtime}</TH>
                   <TH numeric>{t.timesheet.leave}</TH>
                   <TH numeric>{t.timesheet.vacation}</TH>
-                  <TH numeric>{t.timesheet.sickness}</TH>
+                  <TH numeric>{t.reports.sicknessAndParental}</TH>
+                  <TH className="w-40">{t.reports.composition}</TH>
                 </TR>
               </THead>
               <TBody>
@@ -177,11 +198,21 @@ function ReportsPage() {
                       </TD>
                     ) : null}
                     <TD className="font-medium">{row.name}</TD>
-                    <TD numeric>{row.regular}</TD>
-                    <TD numeric>{row.overtime}</TD>
-                    <TD numeric>{row.leave}</TD>
-                    <TD numeric>{row.vacation}</TD>
-                    <TD numeric>{row.sickness}</TD>
+                    <TD numeric>{row.totals.regular}</TD>
+                    <TD numeric>{row.totals.overtime}</TD>
+                    <TD numeric>{row.totals.leave}</TD>
+                    <TD numeric>{row.totals.vacation}</TD>
+                    <TD numeric>{row.totals.sickness}</TD>
+                    <TD>
+                      {/* The same five colours as the chart above, so a row and
+                          a column can be read against each other. */}
+                      <StackedBar
+                        values={row.totals}
+                        series={HOUR_SERIES}
+                        total={row.total}
+                        max={widestRow}
+                      />
+                    </TD>
                   </TR>
                 ))}
               </TBody>

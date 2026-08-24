@@ -50,8 +50,13 @@ export function SummaryBar({
             "min-w-0 flex-1 px-4 py-2.5",
             // On two columns the dividers have to be drawn per-cell.
             "border-border sm:border-0",
-            index % 2 === 0 && "border-r",
+            index % 2 === 0 && "border-r sm:border-r-0",
             index < metrics.length - 2 && "border-b",
+            // An odd count would otherwise leave a hole in the bottom-right of
+            // the two-column phone layout.
+            metrics.length % 2 === 1 &&
+              index === metrics.length - 1 &&
+              "col-span-2 border-r-0 sm:col-span-1",
           )}
         >
           <dt className="truncate text-micro font-medium uppercase tracking-[0.04em] text-muted-foreground">

@@ -142,6 +142,11 @@ export const t = {
     selectAll: "Seleziona tutti",
     noSelection: "Seleziona almeno un dipendente.",
     team: "Totali del team",
+    sicknessAndParental: "Malattia e congedi",
+    dailyTrend: "Andamento del mese",
+    dailyTrendHint: "Ore per giorno, divise per tipo.",
+    noData: "Nessuna ora registrata in questo mese.",
+    composition: "Composizione",
   },
 
   users: {

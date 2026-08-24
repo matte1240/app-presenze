@@ -1,5 +1,7 @@
 import { cn } from "../../ui/cn";
+import { StackedBar } from "../../ui/primitives";
 import { t } from "../../i18n/it";
+import { HOUR_SERIES } from "../reports/month-series";
 import type { DayCellModel } from "./view-model";
 
 /**
@@ -50,6 +52,20 @@ function footnoteFor(cell: DayCellModel): string | null {
   return null;
 }
 
+function dayValues(cell: DayCellModel): Record<string, number> {
+  const e = cell.entry;
+  return {
+    regular: e?.regularHours ?? 0,
+    overtime: e?.overtimeHours ?? 0,
+    leave: (e?.leaveHours ?? 0) + (e?.leave104Hours ?? 0),
+    vacation: e?.vacationHours ?? 0,
+    sickness: (e?.sicknessHours ?? 0) + (e?.paternityHours ?? 0),
+  };
+}
+
+const dayTotal = (cell: DayCellModel) =>
+  Object.values(dayValues(cell)).reduce((sum, v) => sum + v, 0);
+
 function DayCell({ cell, onSelect }: { cell: DayCellModel; onSelect: (cell: DayCellModel) => void }) {
   const interactive = cell.inMonth && cell.editable;
   // A day still to be filled in is a task, not a failure: it gets a marker on
@@ -98,6 +114,21 @@ function DayCell({ cell, onSelect }: { cell: DayCellModel; onSelect: (cell: DayC
             <span className="mt-1 hidden truncate text-micro text-muted-foreground sm:block">
               {footnoteFor(cell)}
             </span>
+          ) : null}
+
+          {/*
+            The day against its contract, in the same five colours as the report
+            chart. It is what lets a month be read as a shape — short days,
+            overtime and absences show up without reading a single number.
+          */}
+          {dayTotal(cell) > 0 ? (
+            <StackedBar
+              className="mt-1.5"
+              values={dayValues(cell)}
+              series={HOUR_SERIES}
+              total={dayTotal(cell)}
+              max={Math.max(cell.contractHours, dayTotal(cell))}
+            />
           ) : null}
         </span>
       ) : cell.holiday ? (
