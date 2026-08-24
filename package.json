@@ -16,6 +16,7 @@
     "start": "node dist/server/index.js",
     "test": "vitest run",
     "test:watch": "vitest",
+    "generate:routes": "node scripts/generate-routes.mjs",
     "typecheck": "tsc --noEmit",
     "lint": "eslint src",
     "db:generate": "drizzle-kit generate",
