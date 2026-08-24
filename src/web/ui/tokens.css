@@ -127,6 +127,22 @@
 }
 
 /*
+  The sign-in panel. It is the one surface that carries white text over the
+  brand at full strength, so it needs its own pair of stops rather than
+  borrowing `--primary`: a flat fill of the accent is a rectangle, and the
+  accent alone is too light to sit under white type in dark mode.
+*/
+:root {
+  --panel-from: 226 72% 56%;
+  --panel-to: 233 74% 33%;
+}
+
+.dark {
+  --panel-from: 228 52% 24%;
+  --panel-to: 235 58% 12%;
+}
+
+/*
   Chart series — a categorical palette, not a set of decorative colours.
 
   The order is the colourblind-safety mechanism and is not cosmetic: these five
@@ -224,6 +240,8 @@
   --color-series-4: var(--series-4);
   --color-series-5: var(--series-5);
   --color-grid-line: hsl(var(--grid-line));
+  --color-panel-from: hsl(var(--panel-from));
+  --color-panel-to: hsl(var(--panel-to));
 
   /* An explicit type scale. Sizes are named for their role, so a component
      asks for `text-micro` rather than guessing at a pixel value. */

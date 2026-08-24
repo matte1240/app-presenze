@@ -9,6 +9,7 @@ import { ApiError, call, rpc } from "../api/client";
 import { authStateQuery, sessionQuery, useLogin } from "../api/session";
 import { t } from "../i18n/it";
 import { Alert, Button, Dialog, Field, Input } from "../ui/primitives";
+import { BrandPanel, Rhythm } from "../features/auth/brand-panel";
 
 export const Route = createFileRoute("/")({
   beforeLoad: async ({ context }) => {
@@ -51,19 +52,19 @@ function LoginPage() {
   });
 
   return (
-    <div className="grid min-h-dvh lg:grid-cols-2">
-      <aside className="hidden flex-col justify-between bg-primary p-10 text-primary-foreground lg:flex">
-        <div className="flex items-center gap-2 text-sm font-semibold">
-          <Clock3 className="size-5" aria-hidden />
-          Presenze
-        </div>
-        <p className="max-w-sm text-2xl font-semibold leading-snug tracking-tight">{t.auth.tagline}</p>
-        <div />
-      </aside>
+    <div className="grid min-h-dvh lg:grid-cols-[minmax(0,1fr)_minmax(0,1.05fr)]">
+      <BrandPanel className="hidden lg:flex" />
 
-      <main className="flex items-center justify-center p-6">
-        <div className="w-full max-w-sm">
-          <h1 className="text-xl font-semibold">{t.auth.signIn}</h1>
+      <main className="flex items-center justify-center px-6 py-10">
+        <div className="w-full max-w-[22rem]">
+          {/* The panel is the only place the product names itself, and it is
+              hidden below lg — which left the whole phone experience unbranded. */}
+          <div className="mb-8 flex items-center gap-2 text-label font-semibold lg:hidden">
+            <Clock3 className="size-5 text-primary" aria-hidden />
+            {t.app.name}
+          </div>
+
+          <h1 className="text-display font-semibold tracking-[-0.02em]">{t.auth.signIn}</h1>
           <p className="mt-1 text-body text-muted-foreground">{t.auth.signInHint}</p>
 
           {search.expired ? (
@@ -102,10 +103,14 @@ function LoginPage() {
           <button
             type="button"
             onClick={() => setForgotOpen(true)}
-            className="mt-4 text-[13px] text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
+            className="mt-5 text-label text-muted-foreground underline-offset-4 transition-colors hover:text-foreground hover:underline"
           >
             {t.auth.forgot}
           </button>
+
+          {/* The panel is desktop-only, so the phone gets the same graphic in
+              the accent instead of nothing at all. */}
+          <Rhythm className="mt-12 h-12 lg:hidden" onBrand={false} />
 
           <ForgotPasswordDialog open={forgotOpen} onOpenChange={setForgotOpen} />
         </div>

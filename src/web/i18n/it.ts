@@ -8,6 +8,7 @@
  */
 export const t = {
   app: {
+    name: "Presenze",
     loading: "Caricamento…",
     retry: "Riprova",
     save: "Salva",
@@ -46,6 +47,8 @@ export const t = {
     passwordChanged: "Password aggiornata. Accedi di nuovo.",
     sessionExpired: "Sessione scaduta per inattività.",
     tagline: "Ore, ferie e permessi in un posto solo.",
+    taglineHint:
+      "Il cartellino si compila in pochi secondi, e i totali del mese sono sempre pronti per le paghe.",
     signInHint: "Inserisci le tue credenziali per continuare.",
   },
 
