@@ -11,6 +11,7 @@ export interface ManagedUser {
   canWorkSunday: boolean;
   has104: boolean;
   hasPaternity: boolean;
+  createdAt: string;
   regularHours: number | null;
   overtimeHours: number | null;
 }

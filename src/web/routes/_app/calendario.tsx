@@ -54,6 +54,15 @@ function CalendarPage() {
 
   const [selected, setSelected] = useState<DayCellModel | null>(null);
 
+  // Whose hire date bounds the "missing day" markers: the person being viewed,
+  // which for an admin is not necessarily themselves.
+  const activeSince = useMemo(() => {
+    const target = targetUserId === user.id
+      ? user.createdAt
+      : (people.data ?? []).find((p) => p.id === targetUserId)?.createdAt;
+    return (target?.slice(0, 10) ?? null) as LocalDate | null;
+  }, [targetUserId, user, people.data]);
+
   const week: WeekSchedule = useMemo(
     () => (schedule.data ? weekFrom(schedule.data.days) : {}),
     [schedule.data],
@@ -73,8 +82,9 @@ function CalendarPage() {
           hasPaternity: user.hasPaternity,
         },
         today,
+        activeSince,
       }),
-    [month, entries.data, requests.data, week, user, schedule.data, today],
+    [month, entries.data, requests.data, week, user, schedule.data, today, activeSince],
   );
 
   const loading = entries.isLoading || schedule.isLoading;

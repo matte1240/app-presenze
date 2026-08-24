@@ -170,6 +170,8 @@ export const authRoutes = new Hono<AppEnv>()
         canWorkSunday: user.canWorkSunday,
         has104: user.has104,
         hasPaternity: user.hasPaternity,
+        /** The calendar uses this so it never reports gaps predating the hire. */
+        createdAt: user.createdAt.toISOString(),
       },
       /** Drives the idle warning in the SPA; the server remains the authority. */
       idleExpiresAt: idleExpiresAt.toISOString(),

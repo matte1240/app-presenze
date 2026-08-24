@@ -61,6 +61,8 @@ export function buildMonth(args: {
   role: Role;
   flags: UserFlags;
   today: LocalDate;
+  /** Nothing before this date can be "missing" — the person was not here yet. */
+  activeSince: LocalDate | null;
 }): MonthModel {
   const { from, to } = monthRange(toYearMonth(args.month));
 
@@ -98,9 +100,11 @@ export function buildMonth(args: {
         : roundHours(entry.vacationHours + entry.sicknessHours + entry.paternityHours)
       : 0;
 
+    const beforeHire = args.activeSince !== null && date < args.activeSince;
+
     let state: CellState = "empty";
     if (entry) state = entry.kind === "work" ? "filled" : "leave";
-    else if (holiday || contractHours === 0) state = "closed";
+    else if (holiday || contractHours === 0 || beforeHire) state = "closed";
     else if (date < args.today && !approved.has(date)) state = "missing";
 
     return {

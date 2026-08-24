@@ -31,7 +31,9 @@ function SetupPage() {
   const onSubmit = form.handleSubmit(async (values) => {
     try {
       await call(rpc.auth.setup.$post({ json: values }));
-      await queryClient.invalidateQueries();
+      // Reset rather than invalidate: the route guards read through
+      // `ensureQueryData`, which returns stale cache instead of refetching.
+      await queryClient.resetQueries();
       await navigate({ to: "/calendario" });
     } catch (error) {
       form.setError("root", { message: error instanceof ApiError ? error.message : t.app.genericError });

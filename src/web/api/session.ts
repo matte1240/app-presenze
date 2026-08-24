@@ -9,6 +9,7 @@ export interface CurrentUser {
   canWorkSunday: boolean;
   has104: boolean;
   hasPaternity: boolean;
+  createdAt: string;
 }
 
 export interface Session {
@@ -47,7 +48,11 @@ export function useLogin() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (json: { email: string; password: string }) => call(rpc.auth.login.$post({ json })),
-    onSuccess: () => queryClient.invalidateQueries(),
+    // `resetQueries`, not `invalidateQueries`: the router's `beforeLoad` calls
+    // `ensureQueryData`, which hands back cached data even once it is stale.
+    // Merely invalidating would leave the guard reading the pre-login answer —
+    // that no session exists — and bouncing straight back to this page.
+    onSuccess: () => queryClient.resetQueries(),
   });
 }
 
