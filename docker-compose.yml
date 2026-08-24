@@ -1,105 +1,37 @@
 services:
-  # Next.js Application
   app:
     build: .
-    image: ${DOCKER_IMAGE:-ghcr.io/matte1240/app-presenze}:${TAG:-latest}
-    container_name: ${COMPOSE_PROJECT_NAME:-app-presenze}-app
+    image: ${DOCKER_IMAGE:-app-presenze:latest}
     restart: unless-stopped
-    environment:
-      # Database — embedded SQLite file on the app_data volume. Absolute path so
-      # it does not depend on the process working directory.
-      DATABASE_URL: file:/app/data/app.db
-      
-      # NextAuth
-      NEXTAUTH_URL: ${NEXTAUTH_URL:-http://localhost:3000}
-      NEXTAUTH_SECRET: ${NEXTAUTH_SECRET}
-      
-      # App URL
-      APP_URL: ${APP_URL:-http://localhost:3000}
-
-      # White-label branding — overrides branding.config.ts at runtime, so the
-      # same image can be rebranded per customer. See docs/WHITE_LABEL.md.
-      BRAND_APP_NAME: ${BRAND_APP_NAME:-}
-      BRAND_APP_SHORT_NAME: ${BRAND_APP_SHORT_NAME:-}
-      BRAND_APP_DESCRIPTION: ${BRAND_APP_DESCRIPTION:-}
-      BRAND_APP_TAGLINE: ${BRAND_APP_TAGLINE:-}
-      BRAND_APP_SUBTITLE: ${BRAND_APP_SUBTITLE:-}
-      BRAND_LOCALE: ${BRAND_LOCALE:-}
-      BRAND_HTML_LANG: ${BRAND_HTML_LANG:-}
-      BRAND_COMPANY_NAME: ${BRAND_COMPANY_NAME:-}
-      BRAND_COMPANY_WEBSITE: ${BRAND_COMPANY_WEBSITE:-}
-      BRAND_SUPPORT_EMAIL: ${BRAND_SUPPORT_EMAIL:-}
-      BRAND_LOGO_LIGHT: ${BRAND_LOGO_LIGHT:-}
-      BRAND_LOGO_DARK: ${BRAND_LOGO_DARK:-}
-      BRAND_LOGO_ICON: ${BRAND_LOGO_ICON:-}
-      BRAND_LOGO_ALT: ${BRAND_LOGO_ALT:-}
-      BRAND_LOGO_WIDTH: ${BRAND_LOGO_WIDTH:-}
-      BRAND_LOGO_HEIGHT: ${BRAND_LOGO_HEIGHT:-}
-      BRAND_EMAIL_LOGO_LIGHT: ${BRAND_EMAIL_LOGO_LIGHT:-}
-      BRAND_EMAIL_LOGO_DARK: ${BRAND_EMAIL_LOGO_DARK:-}
-      BRAND_EMAIL_LOGO_WIDTH: ${BRAND_EMAIL_LOGO_WIDTH:-}
-      BRAND_FAVICON: ${BRAND_FAVICON:-}
-      BRAND_FAVICON_DARK: ${BRAND_FAVICON_DARK:-}
-      BRAND_APPLE_TOUCH_ICON: ${BRAND_APPLE_TOUCH_ICON:-}
-      BRAND_PWA_ICONS: ${BRAND_PWA_ICONS:-}
-      BRAND_PWA_ICONS_DARK: ${BRAND_PWA_ICONS_DARK:-}
-      BRAND_PRIMARY_COLOR: ${BRAND_PRIMARY_COLOR:-}
-      BRAND_PRIMARY_COLOR_DARK: ${BRAND_PRIMARY_COLOR_DARK:-}
-      BRAND_RADIUS: ${BRAND_RADIUS:-}
-      BRAND_THEME_LIGHT: ${BRAND_THEME_LIGHT:-}
-      BRAND_THEME_DARK: ${BRAND_THEME_DARK:-}
-      BRAND_PWA_THEME_COLOR_LIGHT: ${BRAND_PWA_THEME_COLOR_LIGHT:-}
-      BRAND_PWA_THEME_COLOR_DARK: ${BRAND_PWA_THEME_COLOR_DARK:-}
-      BRAND_PWA_BACKGROUND_COLOR: ${BRAND_PWA_BACKGROUND_COLOR:-}
-      BRAND_EMAIL_COLOR_PRIMARY: ${BRAND_EMAIL_COLOR_PRIMARY:-}
-      BRAND_EMAIL_COLOR_SUCCESS: ${BRAND_EMAIL_COLOR_SUCCESS:-}
-      BRAND_EMAIL_COLOR_WARNING: ${BRAND_EMAIL_COLOR_WARNING:-}
-      BRAND_EMAIL_COLOR_DANGER: ${BRAND_EMAIL_COLOR_DANGER:-}
-      BRAND_EMAIL_COLOR_INFO: ${BRAND_EMAIL_COLOR_INFO:-}
-
-
-      # Email Configuration
-      EMAIL_HOST: ${EMAIL_HOST:-smtp.gmail.com}
-      EMAIL_USER: ${EMAIL_USER:-}
-      EMAIL_PASSWORD: ${EMAIL_PASSWORD:-}
-      EMAIL_FROM_NAME: ${EMAIL_FROM_NAME:-}
-      
-      # Backup Configuration
-      BACKUP_CRON_SCHEDULE: ${BACKUP_CRON_SCHEDULE:-0 2 * * *}
-      BACKUP_EMAIL_RECIPIENT: ${BACKUP_EMAIL_RECIPIENT:-}
-      BACKUP_S3_BUCKET: ${BACKUP_S3_BUCKET:-}
-      BACKUP_S3_REGION: ${BACKUP_S3_REGION:-}
-      BACKUP_S3_ACCESS_KEY_ID: ${BACKUP_S3_ACCESS_KEY_ID:-}
-      BACKUP_S3_SECRET_ACCESS_KEY: ${BACKUP_S3_SECRET_ACCESS_KEY:-}
-      BACKUP_S3_PREFIX: ${BACKUP_S3_PREFIX:-backups/database}
-      BACKUP_S3_ENDPOINT: ${BACKUP_S3_ENDPOINT:-}
-
-      # Node
-      NODE_ENV: ${NODE_ENV:-production}
-      PORT: 3000
-      HOSTNAME: 0.0.0.0
-      TZ: ${TZ:-Europe/Rome}
     ports:
       - "${APP_PORT:-3000}:3000"
+    environment:
+      # Everything has a working default except the ones marked in .env.example.
+      TZ: ${TZ:-Europe/Rome}
+      APP_URL: ${APP_URL:-http://localhost:3000}
+      APP_NAME: ${APP_NAME:-Presenze}
+      COMPANY_NAME: ${COMPANY_NAME:-}
+      HOLIDAY_PATRON_DAYS: ${HOLIDAY_PATRON_DAYS:-}
+
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_SECURE: ${SMTP_SECURE:-false}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      MAIL_FROM: ${MAIL_FROM:-}
+
+      ENABLE_CRON: ${ENABLE_CRON:-true}
+      BACKUP_CRON: ${BACKUP_CRON:-0 2 * * *}
+      REMINDER_CRON: ${REMINDER_CRON:-0 19 * * *}
+      BACKUP_RETENTION_DAYS: ${BACKUP_RETENTION_DAYS:-30}
+      BACKUP_MIN_COUNT: ${BACKUP_MIN_COUNT:-7}
+      BACKUP_EMAIL_TO: ${BACKUP_EMAIL_TO:-}
     volumes:
-      - app_data:/app/data
-      - app_logs:/app/logs
-      - app_backups:/app/backups/database
-      - app_uploads:/app/public/uploads
-    networks:
-      - app-presenze-network
+      - data:/app/data
+      - backups:/app/backups
 
-networks:
-  app-presenze-network:
-    driver: bridge
-
+# SQLite plus in-process cron means exactly one instance. Scaling this service
+# would corrupt the first and double-fire the second.
 volumes:
-  app_data:
-    driver: local
-  app_logs:
-    driver: local
-  app_backups:
-    driver: local
-  app_uploads:
-    driver: local
-
+  data:
+  backups:

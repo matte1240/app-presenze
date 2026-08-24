@@ -1,103 +1,46 @@
-# ========================================
-# Multi-stage Dockerfile for Next.js 16
-# ========================================
+# syntax=docker/dockerfile:1
 
-# Stage 1: Production-only dependencies (no devDependencies)
-FROM node:25-alpine AS prod-deps
+# ── Production dependencies ────────────────────────────────────────────────
+# Only three packages survive bundling: better-sqlite3 (a native addon),
+# exceljs and nodemailer (dynamic requires). Everything else — React, the
+# router, Tailwind — is a build-time concern and lives in devDependencies, so
+# it never reaches the runtime image.
+FROM node:22-bookworm-slim AS deps
 WORKDIR /app
+RUN apt-get update && apt-get install -y --no-install-recommends python3 make g++ \
+    && rm -rf /var/lib/apt/lists/*
+COPY package.json package-lock.json ./
+RUN npm ci --omit=dev
 
-RUN apk add --no-cache python3 make g++
-
-COPY package.json package-lock.json* ./
-COPY prisma ./prisma
-COPY prisma.config.ts ./
-
-# Install only production dependencies
-RUN npm ci --omit=dev && npm cache clean --force
-
-# better-sqlite3 ships prebuilt binaries for every platform it supports (~16MB).
-# Only Linux can ever run here; dropping macOS and Windows saves ~8MB while
-# keeping both the glibc and musl bindings, so the base image can change freely.
-RUN find node_modules/better-sqlite3/prebuilds -type f \
-      \( -name 'darwin-*' -o -name 'win32-*' \) -delete
-
-# Stage 2: Builder
-FROM node:25-alpine AS builder
+# ── Build ──────────────────────────────────────────────────────────────────
+FROM node:22-bookworm-slim AS build
 WORKDIR /app
-
-RUN apk add --no-cache python3 make g++
-
-COPY package.json package-lock.json* ./
-COPY prisma ./prisma
-COPY prisma.config.ts ./
-
-# Install ALL dependencies (needed to compile)
-RUN npm ci && npm cache clean --force
-
+RUN apt-get update && apt-get install -y --no-install-recommends python3 make g++ \
+    && rm -rf /var/lib/apt/lists/*
+COPY package.json package-lock.json ./
+RUN npm ci
 COPY . .
-
-# Generate Prisma Client (Prisma is already installed)
-RUN npx prisma generate
-
-# Build Next.js application
-# This will create an optimized production build
-ENV NEXT_TELEMETRY_DISABLED=1
 RUN npm run build
 
-# Stage 4: Runner
-FROM node:25-alpine AS runner
+# ── Runtime ────────────────────────────────────────────────────────────────
+FROM node:22-bookworm-slim AS runner
 WORKDIR /app
+ENV NODE_ENV=production \
+    PORT=3000 \
+    DATABASE_FILE=/app/data/app.db \
+    BACKUP_DIR=/app/backups
 
-# openssl and libc6-compat are needed by the Prisma CLI (migrate deploy) on
-# Alpine; su-exec drops privileges in the entrypoint. The database is an
-# in-process SQLite file, so no database client tooling is required.
-RUN apk add --no-cache openssl libc6-compat su-exec
+COPY --from=deps  /app/node_modules ./node_modules
+COPY --from=build /app/dist         ./dist
+COPY package.json ./
 
-# Set to production environment
-ENV NODE_ENV=production
-ENV NEXT_TELEMETRY_DISABLED=1
+# The database and the backups are the only writable state.
+RUN mkdir -p /app/data /app/backups && chown -R node:node /app/data /app/backups
+USER node
+VOLUME ["/app/data", "/app/backups"]
 
-# Create a non-root user
-RUN addgroup --system --gid 1001 nodejs
-RUN adduser --system --uid 1001 nextjs
-
-# Copy entrypoint script (as root before switching users)
-COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
-RUN chmod +x /usr/local/bin/docker-entrypoint.sh
-
-# Copy necessary files from builder
-COPY --from=builder --chown=nextjs:nodejs /app/public ./public
-COPY --from=builder /app/package.json ./package.json
-
-# Copy production-only dependencies (no devDependencies)
-COPY --from=prod-deps --chown=nextjs:nodejs /app/node_modules ./node_modules
-
-# Copy built application
-COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
-COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
-
-# Copy Prisma schema, migrations, and config
-COPY --from=builder --chown=nextjs:nodejs /app/prisma ./prisma
-COPY --from=builder --chown=nextjs:nodejs /app/prisma.config.ts ./prisma.config.ts
-
-# Create directories for the SQLite database, logs and backups
-RUN mkdir -p /app/data /app/logs /app/backups/database && \
-    chown -R nextjs:nodejs /app/data /app/logs /app/backups
-
-# Entrypoint runs as root to fix volume permissions, then drops to nextjs
-# USER nextjs  -- handled by entrypoint via su-exec
-
-# Expose port
 EXPOSE 3000
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+  CMD node -e "fetch('http://127.0.0.1:'+(process.env.PORT||3000)+'/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
 
-# Set hostname and port for Next.js standalone server
-ENV HOSTNAME=0.0.0.0
-ENV PORT=3000
-
-# Health check
-HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
-    CMD node -e "import('http').then(h => h.default.get('http://localhost:3000/api/auth/session', r => {process.exit(r.statusCode === 200 ? 0 : 1)}))"
-
-# Set entrypoint and default command
-ENTRYPOINT ["docker-entrypoint.sh"]
-CMD ["node", "server.js"]
+CMD ["node", "dist/server/index.js"]

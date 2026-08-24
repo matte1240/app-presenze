@@ -1,175 +1,106 @@
-# 🕐 Presenze — Time & Attendance Tracker
+# Presenze
 
-A modern, **white-label** full-stack time tracking application built with **Next.js 16**, **Prisma**, and **SQLite**. Manage employee work hours, track vacation and sick days, handle leave requests, and generate comprehensive reports—all with a clean, responsive UI.
+Gestionale di presenze e cartellini per una singola azienda. Il dipendente
+registra le ore giorno per giorno, l'amministratore approva ferie e permessi ed
+esporta il riepilogo mensile per le paghe.
 
-Every customer-facing element—name, logo, colors, favicons, PWA identity and email design—is configuration rather than code, so the product can be rebranded and resold without touching a component. See the **[White-Label Guide](docs/WHITE_LABEL.md)**.
+Un solo processo Node serve sia l'API sia l'interfaccia, su un database SQLite
+incorporato. Non serve altro.
 
-## ✨ Features
-
-- **📅 Time Tracking**: Interactive calendar for logging daily work hours with morning/afternoon shift support
-- **🏖️ Leave Management**: Complete leave request system (vacation, sick days, permission, etc.)
-- **👥 Role-Based Access**: Separate employee and admin interfaces with granular permissions
-- **📊 Reports & Analytics**: Generate Excel reports, view statistics, and analyze work patterns
-- **🗓️ Italian Holidays**: Automatic integration with Italian public holidays
-- **⚙️ Working Schedules**: Per-user customizable work schedules with flexible time configuration
-- **📧 Email System**: Automated email notifications for welcome messages, password resets, and leave approvals
-- **🔄 Google Calendar Sync**: Automatic synchronization of approved leave requests
-- **💾 Automated Backups**: Scheduled database backups with email notifications
-- **📱 Progressive Web App**: Installable app with offline support
-- **🔐 Secure Authentication**: NextAuth with JWT sessions and automatic inactivity timeout
-- **🎨 White-Label Ready**: Logo, theme, icons, emails and holiday calendar are all configurable—at build time or per deployment
-
-## 🚀 Getting Started
-
-### Prerequisites
-
-- **Docker** and **Docker Compose**
-- **Node.js 20+** (if running locally without Docker)
-
-### Installation
-
-1. **Clone the repository**
-   ```bash
-   git clone <repository-url>
-   cd app-presenze
-   ```
-
-2. **Environment Setup**
-   Copy the example environment file:
-   ```bash
-   cp .env.example .env
-   ```
-   
-   Configure the required environment variables (see [Environment Variables](#-environment-variables) section below).
-   
-   *Note: The default settings in `.env.example` are configured for the Docker setup.*
-
-### Running with Docker (Recommended)
-
-This method sets up the database and application automatically.
+## Avvio rapido
 
 ```bash
-# Start the application and database
-npm run docker:up
-
-# To rebuild the images (if you made changes)
-npm run docker:build
-
-# To stop the application
-npm run docker:down
+docker compose up --build
 ```
 
-The application will be available at [http://localhost:3000](http://localhost:3000).
+Apri <http://localhost:3000>: al primo accesso l'applicazione chiede di creare
+l'account amministratore. Da lì si creano i dipendenti e si assegna a ciascuno
+l'orario settimanale.
 
-### Running Locally (Development)
+### Sviluppo
 
-The database is an embedded SQLite file, so there is no database service to start —
-`prisma migrate dev` creates `data/app.db` on first run.
-
-1. **Install Dependencies**
-   ```bash
-   npm install
-   ```
-
-3. **Database Setup**
-   ```bash
-   # Run migrations
-   npm run prisma:migrate
-   
-   # Seed the database with initial users
-   npm run prisma:seed
-   ```
-
-4. **Start the Development Server**
-   ```bash
-   npm run dev
-   ```
-
-## 🔑 Default Credentials
-
-The database seeding process creates the following users:
-
-| Role | Email | Password |
-|------|-------|----------|
-| **Admin** | `admin@example.com` | `Admin123!` |
-| **Employee** | `employee@example.com` | `Employee123!` |
-
-## 🌍 Environment Variables
-
-The application requires several environment variables to function. Create a `.env` file based on `.env.example` and configure the following:
-
-### Required Variables
-
-```env
-# Database
-DATABASE_URL="file:./data/app.db"
-
-# NextAuth
-NEXTAUTH_URL="http://localhost:3000"
-NEXTAUTH_SECRET="your-secret-key-here"  # Generate with: openssl rand -base64 32
-
-# Node Environment
-NODE_ENV="development"  # or "production"
+```bash
+npm install
+npm run db:seed   # facoltativo: due utenti di prova e due settimane di ore
+npm run dev       # API su :3000, interfaccia su :5173
 ```
 
-### Optional Variables
+Il seed stampa le credenziali che crea.
 
-```env
-# Email Configuration (for password reset and notifications)
-EMAIL_HOST="smtp.gmail.com"
-EMAIL_PORT="587"
-EMAIL_USER="your-email@gmail.com"
-EMAIL_PASSWORD="your-app-password"
-EMAIL_FROM="noreply@yourcompany.com"
+## Come funziona
 
-# Google Calendar Integration (for leave sync)
-GOOGLE_CLIENT_EMAIL="your-service-account@project.iam.gserviceaccount.com"
-GOOGLE_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----\n"
-GOOGLE_CALENDAR_ID="your-calendar-id@group.calendar.google.com"
+**L'orario contrattuale** è definito per utente e per giorno della settimana:
+turno mattina, turno pomeriggio e, per i part-time, un monte ore che può
+divergere dalla durata dei turni. Anche la domenica è configurabile.
 
-# Database Backup (cron schedule)
-BACKUP_CRON_SCHEDULE="0 2 * * *"  # Daily at 2 AM
+**Il motore delle ore** (`src/core/timesheet.ts`) prende ciò che il dipendente
+ha dichiarato e decide come si classifica:
+
+- oltre l'orario contrattuale ⇒ straordinario;
+- sotto l'orario contrattuale ⇒ la differenza diventa permesso, eventualmente
+  imputato al permesso 104;
+- giorno festivo o non lavorativo ⇒ tutto straordinario, e un'assenza in quel
+  giorno non consuma nulla;
+- un permesso orario approvato viene sottratto dalle ore effettivamente svolte.
+
+Il calcolo avviene **sul server**. Il browser lo esegue anche in locale, ma solo
+per mostrare l'anteprima mentre si compila: ciò che viene salvato è sempre il
+risultato del server.
+
+**Le festività italiane** sono calcolate, non configurate. Le patronali locali si
+aggiungono con `HOLIDAY_PATRON_DAYS`.
+
+**Le richieste di assenza** approvate generano automaticamente le giornate nel
+cartellino, saltando festivi e giorni non lavorativi secondo l'orario di quella
+persona. Approvare due volte non produce duplicati, e una giornata su cui
+risultano già ore registrate viene segnalata invece che sovrascritta.
+
+## Struttura
+
+```
+src/core/      dominio puro: date, orari, festività, motore ore, regole
+src/server/    API Hono, schema Drizzle, servizi (email, backup, Excel)
+src/web/       SPA React
+  ui/          token e primitivi grafici
+  features/    schermate
 ```
 
-See [docs/CONFIGURATION.md](docs/CONFIGURATION.md) for detailed setup instructions.
+Il confine fra `ui/` e il resto è imposto da una regola ESLint: `ui/` non può
+importare né le funzionalità né il dominio né il client API. Rifare la grafica
+significa quindi toccare `ui/tokens.css` e `ui/primitives/`, non la logica.
 
-## 🛠 Project Structure
+## Comandi
 
-- **`branding.config.ts`**: Customer branding — the first file to edit for a new deployment
-- **`/branding`**: Branding presets and the merge logic behind them
-- **`/app`**: Next.js App Router pages and API routes
-- **`/components`**: Reusable React components
-- **`/lib`**: Utility functions, authentication, and database client
-- **`/prisma`**: Database schema and migrations
-- **`/public`**: Static assets
-- **`/types`**: TypeScript type definitions
+| Comando | Cosa fa |
+|---|---|
+| `npm run dev` | API e interfaccia in sviluppo |
+| `npm test` | test del dominio |
+| `npm run typecheck` | TypeScript su tutto il progetto |
+| `npm run lint` | ESLint, incluse le regole di confine fra i layer |
+| `npm run build` | bundle di interfaccia e server in `dist/` |
+| `npm start` | avvia il bundle di produzione |
+| `npm run db:generate` | genera una migrazione dopo aver modificato lo schema |
+| `npm run db:seed` | popola un database di sviluppo |
 
-## 📝 Key Commands
+## Configurazione
 
-| Command | Description |
-|---------|-------------|
-| `npm run dev` | Start local development server |
-| `npm run build` | Build for production |
-| `npm run docker:up` | Start full stack in Docker |
-| `npm run docker:build` | Rebuild and start full stack in Docker |
-| `npm run docker:down` | Stop Docker containers |
-| `npm run prisma:studio` | Open Prisma Studio GUI to view data |
-| `npm run prisma:migrate` | Create and run database migrations |
-| `npm run prisma:seed` | Seed database with test data |
-| `npm run lint` | Run code linting |
-| `npm run brand:icons` | Generate favicons and PWA icons from one source image |
+Tutte le variabili sono facoltative e documentate in
+[`.env.example`](.env.example). Senza SMTP l'applicazione funziona ma non invia
+email: i link di reimpostazione password, le notifiche di assenza e i promemoria
+vengono registrati nel log invece che spediti.
 
-## 📚 Documentation
+## Backup
 
-See the `docs/` folder for comprehensive documentation:
+Un backup notturno viene creato con `VACUUM INTO`, che produce una copia
+consistente senza fermare l'applicazione. Dalla schermata **Manutenzione** un
+amministratore può crearne uno a richiesta, scaricarlo o ripristinarne uno.
 
-- **[White-Label Guide](docs/WHITE_LABEL.md)** - Rebranding the product for a new customer
-- **[Deployment Guide](docs/DEPLOYMENT.md)** - Production deployment with Docker
-- **[Configuration](docs/CONFIGURATION.md)** - Environment setup, email, backups, Google Calendar
-- **[Contributing Guidelines](docs/CONTRIBUTING.md)** - How to contribute to the project
-- **[PWA Setup](docs/PWA.md)** - Progressive Web App features and configuration
-- **[Performance Optimizations](docs/PERFORMANCE_OPTIMIZATIONS.md)** - Caching and optimization strategies
-- **[API Reference](docs/API_REFERENCE.md)** - Complete API endpoints documentation
-- **[Leave Requests](docs/LEAVE_REQUESTS.md)** - Leave request workflow and approvals
-- **[Working Schedules](docs/WORKING_SCHEDULES.md)** - User schedule configuration
-- **[Backup System](docs/BACKUP_SYSTEM.md)** - Automated backup and restore procedures
+Il ripristino verifica il file caricato, mette da parte una copia del database
+attuale e poi riapre la connessione senza riavviare il processo.
+
+## Note operative
+
+Il database è un file SQLite e i job pianificati girano nel processo: va
+eseguita **una sola istanza**. Per lo stesso motivo non c'è nulla da scalare
+orizzontalmente — se un domani servisse, andrebbero sostituiti sia il database
+sia lo scheduler.
