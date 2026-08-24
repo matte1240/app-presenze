@@ -3,16 +3,17 @@
 // in environments where the Vite dev server hasn't done so already (e.g. CI).
 import { Generator, configSchema } from "@tanstack/router-generator";
 import { fileURLToPath } from "node:url";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 
-const r = (p) => fileURLToPath(new URL(p, import.meta.url));
-const root = r("..");
+const root = fileURLToPath(new URL("..", import.meta.url));
 
 const config = configSchema.parse({
   routesDirectory: "./src/web/routes",
   generatedRouteTree: "./src/web/routeTree.gen.ts",
   target: "react",
   autoCodeSplitting: true,
-  tmpDir: "/tmp/tanstack-router-gen",
+  tmpDir: join(tmpdir(), "tanstack-router-gen"),
 });
 
 const generator = new Generator({ config, root });
