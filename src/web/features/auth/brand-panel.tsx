@@ -9,25 +9,46 @@ const FEATURES = [
 ] as const;
 
 /**
- * The sign-in panel.
+ * A month of working days, drawn as the rhythm it is.
  *
- * Deliberately the recessed surface rather than a block of brand colour: the
- * split then has a reason to exist in both themes, and the headline can be set
- * in the ordinary text colour instead of white-on-accent. The texture is a
- * faint dot grid under a radial mask — it reads as engineered rather than
- * decorated, and it costs one gradient.
+ * The same columns the report chart draws and the same meter that sits under
+ * every calendar day, turned down to a whisper — so the decoration is the
+ * product's own vocabulary rather than ornament borrowed from somewhere else.
+ * The pattern is fixed, not generated: five weeks with the weekends left as
+ * gaps, a few short days and one long one. Random heights read as noise.
+ */
+const RHYTHM: ReadonlyArray<{ base: number; tip?: number }> = [
+  { base: 0.86 }, { base: 0.9 }, { base: 1 }, { base: 0.82, tip: 0.12 }, { base: 0.94 }, { base: 0 }, { base: 0 },
+  { base: 1 }, { base: 0.72, tip: 0.2 }, { base: 0.9 }, { base: 1 }, { base: 0.78 }, { base: 0 }, { base: 0 },
+  { base: 0.92 }, { base: 1 }, { base: 0.58, tip: 0.3 }, { base: 0.88 }, { base: 1, tip: 0.22 }, { base: 0 }, { base: 0 },
+  { base: 0.84 }, { base: 0.96 }, { base: 1 }, { base: 0.9 }, { base: 0.76, tip: 0.16 }, { base: 0 }, { base: 0 },
+];
+
+/**
+ * The sign-in panel: three layers under the content.
+ *
+ * A tinted gradient for depth, one soft light source, and the dot grid on top
+ * of both. The grid is what keeps it from looking like a plain wash — it reads
+ * as engineered rather than decorated, and it costs one gradient.
  */
 export function BrandPanel({ className, companyName }: { className?: string; companyName: string }) {
   return (
     <aside
       className={cn(
-        "relative flex-col justify-between overflow-hidden border-r border-border bg-surface-sunken/50 p-10 xl:p-14",
+        "relative flex-col justify-between overflow-hidden border-r border-border p-10 xl:p-14",
+        "bg-[linear-gradient(158deg,hsl(var(--panel-from)),hsl(var(--panel-to)))]",
         className,
       )}
     >
+      <span
+        aria-hidden
+        className="pointer-events-none absolute -left-32 -top-32 size-[34rem] rounded-full blur-3xl"
+        style={{ backgroundColor: "hsl(var(--panel-glow) / 0.16)" }}
+      />
+
       <div
         aria-hidden
-        className="pointer-events-none absolute inset-0 opacity-70 dark:opacity-40"
+        className="pointer-events-none absolute inset-0 opacity-70 dark:opacity-45"
         style={{
           backgroundImage:
             "radial-gradient(circle at 1px 1px, hsl(var(--muted-foreground) / 0.35) 1px, transparent 0)",
@@ -44,26 +65,57 @@ export function BrandPanel({ className, companyName }: { className?: string; com
 
       <div className="relative z-10 max-w-lg">
         <h1 className="text-hero font-semibold tracking-[-0.03em] text-foreground">{t.auth.tagline}</h1>
-        <p className="mt-5 text-title leading-relaxed text-muted-foreground">{t.auth.taglineHint}</p>
+        <p className="mt-5 text-title leading-relaxed text-panel-ink-muted">{t.auth.taglineHint}</p>
 
-        <ul className="mt-10 space-y-5">
+        <ul className="mt-9 space-y-5">
           {FEATURES.map(({ icon: Icon, title, body }) => (
             <li key={title} className="flex items-start gap-3.5">
-              <span className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-md border border-border bg-surface text-muted-foreground">
+              <span className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-md border border-border bg-surface/70 text-primary backdrop-blur-sm">
                 <Icon className="size-4" aria-hidden />
               </span>
               <div>
                 <p className="text-body font-medium text-foreground">{title}</p>
-                <p className="mt-0.5 text-body leading-relaxed text-muted-foreground">{body}</p>
+                <p className="mt-0.5 text-body leading-relaxed text-panel-ink-muted">{body}</p>
               </div>
             </li>
           ))}
         </ul>
+
+        <Rhythm className="mt-10 h-14" />
       </div>
 
-      <p className="relative z-10 text-label text-muted-foreground">
+      <p className="relative z-10 text-label text-panel-ink-muted">
         © {new Date().getFullYear()} {companyName}
       </p>
     </aside>
+  );
+}
+
+export function Rhythm({ className }: { className?: string }) {
+  return (
+    <div aria-hidden className={cn("flex items-end gap-[3px]", className)}>
+      {RHYTHM.map((day, index) => (
+        <span key={index} className="flex h-full flex-1 flex-col justify-end">
+          {day.base > 0 ? (
+            <>
+              {day.tip ? (
+                <span
+                  className="w-full rounded-t-[3px] bg-primary/55"
+                  style={{ height: `${day.tip * 100}%` }}
+                />
+              ) : null}
+              <span
+                className={cn("w-full bg-primary/28", day.tip ? "mt-[2px]" : "rounded-t-[3px]")}
+                style={{ height: `${day.base * 100}%` }}
+              />
+            </>
+          ) : (
+            // Weekends are the gaps. Leaving them empty is what makes the row
+            // read as a month rather than as a bar chart of nothing.
+            <span className="h-[2px] w-full rounded-full bg-primary/20" />
+          )}
+        </span>
+      ))}
+    </div>
   );
 }

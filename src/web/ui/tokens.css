@@ -127,6 +127,33 @@
 }
 
 /*
+  The sign-in panel.
+
+  Tinted rather than saturated, which is the whole trick: a flat block of the
+  accent forces white type and kills any texture laid over it, while plain grey
+  has no depth at all. A hint of the brand in the gradient keeps the headline in
+  the ordinary text colour, lets the dot grid read, and still separates the two
+  halves of the screen. `--panel-glow` is the accent itself, used only at very
+  low alpha as a single light source.
+*/
+:root {
+  --panel-from: 226 42% 96%;
+  --panel-to: 231 34% 89%;
+  --panel-glow: 226 70% 55%;
+  /* The panel is a surface of its own, and a tinted one: the global muted ink
+     measured 3.75:1 against the deep end of this gradient, under the 4.5:1
+     needed for body text. This step is darker for that reason alone. */
+  --panel-ink-muted: 235 12% 34%;
+}
+
+.dark {
+  --panel-from: 228 22% 11%;
+  --panel-to: 233 28% 7%;
+  --panel-glow: 226 80% 66%;
+  --panel-ink-muted: 235 10% 68%;
+}
+
+/*
   Chart series — a categorical palette, not a set of decorative colours.
 
   The order is the colourblind-safety mechanism and is not cosmetic: these five
@@ -224,6 +251,9 @@
   --color-series-4: var(--series-4);
   --color-series-5: var(--series-5);
   --color-grid-line: hsl(var(--grid-line));
+  --color-panel-ink-muted: hsl(var(--panel-ink-muted));
+  --color-panel-from: hsl(var(--panel-from));
+  --color-panel-to: hsl(var(--panel-to));
 
   /* An explicit type scale. Sizes are named for their role, so a component
      asks for `text-micro` rather than guessing at a pixel value. */
