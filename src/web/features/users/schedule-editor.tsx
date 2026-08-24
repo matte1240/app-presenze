@@ -91,7 +91,10 @@ export function ScheduleEditor({
               <Checkbox
                 checked={day.isWorking}
                 onCheckedChange={(isWorking) => patch(day.weekday, { isWorking })}
-                label={day.isWorking ? t.users.workingDay : t.users.onlyOvertime}
+                // The label says what ticking the box does and stays put; only
+                // the hint reports the consequence of leaving it clear.
+                label={t.users.workingDay}
+                hint={day.isWorking ? undefined : t.users.onlyOvertime}
               />
             </div>
 

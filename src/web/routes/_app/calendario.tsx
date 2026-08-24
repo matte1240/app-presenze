@@ -172,7 +172,7 @@ function CalendarPage() {
         </div>
       </header>
 
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <Stat label={t.timesheet.regular} value={`${model.totals.regular}h`} loading={loading} tone="primary" />
         <Stat label={t.timesheet.overtime} value={`${model.totals.overtime}h`} loading={loading} tone="warning" />
         <Stat

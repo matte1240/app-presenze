@@ -176,7 +176,7 @@ export const t = {
     workingDay: "Giorno lavorativo",
     manualHours: "Ore da contratto diverse dai turni",
     contractHours: "Ore contrattuali",
-    onlyOvertime: "Solo straordinario",
+    onlyOvertime: "Le ore inserite saranno tutte straordinario.",
     hoursTotal: "Ore totali",
   },
 

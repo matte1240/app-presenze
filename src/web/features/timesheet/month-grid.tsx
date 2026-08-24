@@ -73,7 +73,7 @@ function DayCell({ cell, onSelect }: { cell: DayCellModel; onSelect: (cell: DayC
 
       {cell.entry ? (
         <span className="w-full min-w-0">
-          <span className="block truncate text-[11px] text-muted-foreground">
+          <span className="hidden truncate text-[11px] text-muted-foreground sm:block">
             {cell.entry.kind === "work" ? t.timesheet.worked : t.timesheet.dayTypes[cell.entry.kind]}
           </span>
           <span className="block text-[13px] font-semibold tabular-nums">{cell.hours}h</span>
@@ -84,7 +84,7 @@ function DayCell({ cell, onSelect }: { cell: DayCellModel; onSelect: (cell: DayC
       ) : cell.holiday ? (
         <span className="line-clamp-2 text-[11px] leading-tight text-muted-foreground">{cell.holiday}</span>
       ) : cell.state === "missing" ? (
-        <span className="text-[11px] text-destructive">{t.timesheet.emptyDay}</span>
+        <span className="hidden text-[11px] text-destructive sm:block">{t.timesheet.emptyDay}</span>
       ) : null}
     </button>
   );
