@@ -1,12 +1,6 @@
-import { CalendarDays, Clock, Clock3, Shield } from "lucide-react";
+import { Clock3 } from "lucide-react";
 import { t } from "../../i18n/it";
 import { cn } from "../../ui/cn";
-
-const FEATURES = [
-  { icon: Clock, ...t.auth.features.hours },
-  { icon: CalendarDays, ...t.auth.features.leave },
-  { icon: Shield, ...t.auth.features.admin },
-] as const;
 
 /**
  * A month of working days, drawn as the rhythm it is.
@@ -35,7 +29,7 @@ export function BrandPanel({ className, companyName }: { className?: string; com
   return (
     <aside
       className={cn(
-        "relative flex-col justify-between overflow-hidden border-r border-border p-10 xl:p-14",
+        "relative flex-col justify-center overflow-hidden border-r border-border p-10 xl:p-14",
         "bg-[linear-gradient(158deg,hsl(var(--panel-from)),hsl(var(--panel-to)))]",
         className,
       )}
@@ -58,33 +52,19 @@ export function BrandPanel({ className, companyName }: { className?: string; com
         }}
       />
 
-      <div className="relative z-10 flex items-center gap-2 text-title font-semibold">
+      {/* The mark and the credit are floated to the edges so the middle holds
+          one thing: the sentence and the graphic that illustrates it. */}
+      <div className="absolute inset-x-10 top-10 z-10 flex items-center gap-2 text-title font-semibold xl:inset-x-14 xl:top-14">
         <Clock3 className="size-6 text-primary" aria-hidden />
         {t.app.name}
       </div>
 
       <div className="relative z-10 max-w-lg">
         <h1 className="text-hero font-semibold tracking-[-0.03em] text-foreground">{t.auth.tagline}</h1>
-        <p className="mt-5 text-title leading-relaxed text-panel-ink-muted">{t.auth.taglineHint}</p>
-
-        <ul className="mt-9 space-y-5">
-          {FEATURES.map(({ icon: Icon, title, body }) => (
-            <li key={title} className="flex items-start gap-3.5">
-              <span className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-md border border-border bg-surface/70 text-primary backdrop-blur-sm">
-                <Icon className="size-4" aria-hidden />
-              </span>
-              <div>
-                <p className="text-body font-medium text-foreground">{title}</p>
-                <p className="mt-0.5 text-body leading-relaxed text-panel-ink-muted">{body}</p>
-              </div>
-            </li>
-          ))}
-        </ul>
-
-        <Rhythm className="mt-10 h-14" />
+        <Rhythm className="mt-12 h-24" />
       </div>
 
-      <p className="relative z-10 text-label text-panel-ink-muted">
+      <p className="absolute inset-x-10 bottom-10 z-10 text-label text-panel-ink-muted xl:inset-x-14 xl:bottom-14">
         © {new Date().getFullYear()} {companyName}
       </p>
     </aside>
