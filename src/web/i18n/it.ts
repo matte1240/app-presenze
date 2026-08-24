@@ -49,6 +49,22 @@ export const t = {
     tagline: "Ore, ferie e permessi in un posto solo.",
     taglineHint:
       "Il cartellino si compila in pochi secondi, e i totali del mese sono sempre pronti per le paghe.",
+    welcome: "Bentornato",
+    welcomeHint: "Accedi al tuo account per continuare.",
+    features: {
+      hours: {
+        title: "Gestione ore",
+        body: "Registra le ore giornaliere con turni mattutini e pomeridiani.",
+      },
+      leave: {
+        title: "Ferie e permessi",
+        body: "Richiedi assenze e falle approvare senza passare dalla mail.",
+      },
+      admin: {
+        title: "Pannello amministratore",
+        body: "Gestisci il team, approva richieste e consulta i report.",
+      },
+    },
     signInHint: "Inserisci le tue credenziali per continuare.",
   },
 

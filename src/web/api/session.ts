@@ -36,7 +36,8 @@ export const sessionQuery = queryOptions({
 
 export const authStateQuery = queryOptions({
   queryKey: ["auth-state"],
-  queryFn: () => call<{ needsSetup: boolean; appName: string }>(rpc.auth.state.$get()),
+  queryFn: () =>
+    call<{ needsSetup: boolean; appName: string; companyName: string }>(rpc.auth.state.$get()),
   staleTime: Infinity,
 });
 

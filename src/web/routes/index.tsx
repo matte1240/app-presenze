@@ -7,9 +7,10 @@ import { z } from "zod";
 import { forgotPasswordSchema, loginSchema } from "@core/contracts";
 import { ApiError, call, rpc } from "../api/client";
 import { authStateQuery, sessionQuery, useLogin } from "../api/session";
+import { useQuery } from "@tanstack/react-query";
 import { t } from "../i18n/it";
 import { Alert, Button, Dialog, Field, Input } from "../ui/primitives";
-import { BrandPanel, Rhythm } from "../features/auth/brand-panel";
+import { BrandPanel } from "../features/auth/brand-panel";
 
 export const Route = createFileRoute("/")({
   beforeLoad: async ({ context }) => {
@@ -31,6 +32,9 @@ type LoginValues = z.infer<typeof loginSchema>;
 
 function LoginPage() {
   const navigate = useNavigate();
+  const { data: state } = useQuery(authStateQuery);
+  // Falls back to the product name so the line never reads "© 2026" alone.
+  const company = state?.companyName?.trim() || state?.appName || t.app.name;
   const search = Route.useSearch();
   const login = useLogin();
   const [forgotOpen, setForgotOpen] = useState(false);
@@ -52,20 +56,21 @@ function LoginPage() {
   });
 
   return (
-    <div className="grid min-h-dvh lg:grid-cols-[minmax(0,1fr)_minmax(0,1.05fr)]">
-      <BrandPanel className="hidden lg:flex" />
+    <div className="flex min-h-dvh bg-background">
+      <BrandPanel className="hidden lg:flex lg:w-[46%]" companyName={company} />
 
-      <main className="flex items-center justify-center px-6 py-10">
+      <main className="flex flex-1 items-center justify-center px-5 py-10 sm:px-8">
         <div className="w-full max-w-[22rem]">
-          {/* The panel is the only place the product names itself, and it is
-              hidden below lg — which left the whole phone experience unbranded. */}
-          <div className="mb-8 flex items-center gap-2 text-label font-semibold lg:hidden">
-            <Clock3 className="size-5 text-primary" aria-hidden />
+          {/* The panel is desktop-only, so the mark stands in for it below lg. */}
+          <div className="mb-8 flex items-center justify-center gap-2 text-title font-semibold lg:hidden">
+            <Clock3 className="size-6 text-primary" aria-hidden />
             {t.app.name}
           </div>
 
-          <h1 className="text-display font-semibold tracking-[-0.02em]">{t.auth.signIn}</h1>
-          <p className="mt-1 text-body text-muted-foreground">{t.auth.signInHint}</p>
+          <div className="mb-7">
+            <h1 className="text-display font-semibold tracking-[-0.02em]">{t.auth.welcome}</h1>
+            <p className="mt-1.5 text-body text-muted-foreground">{t.auth.welcomeHint}</p>
+          </div>
 
           {search.expired ? (
             <Alert tone="warning" className="mt-4">
@@ -108,9 +113,9 @@ function LoginPage() {
             {t.auth.forgot}
           </button>
 
-          {/* The panel is desktop-only, so the phone gets the same graphic in
-              the accent instead of nothing at all. */}
-          <Rhythm className="mt-12 h-12 lg:hidden" onBrand={false} />
+          <p className="mt-8 text-center text-label text-muted-foreground lg:hidden">
+            © {new Date().getFullYear()} {company}
+          </p>
 
           <ForgotPasswordDialog open={forgotOpen} onOpenChange={setForgotOpen} />
         </div>

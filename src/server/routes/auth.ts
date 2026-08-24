@@ -61,7 +61,11 @@ export const authRoutes = new Hono<AppEnv>()
   /** Whether the instance still needs its first administrator. */
   .get("/state", async (c) => {
     const [row] = await db.select({ count: sql<number>`count(*)` }).from(users);
-    return c.json({ needsSetup: (row?.count ?? 0) === 0, appName: env.APP_NAME });
+    return c.json({
+      needsSetup: (row?.count ?? 0) === 0,
+      appName: env.APP_NAME,
+      companyName: env.COMPANY_NAME,
+    });
   })
 
   .post("/setup", validate("json", setupSchema), async (c) => {

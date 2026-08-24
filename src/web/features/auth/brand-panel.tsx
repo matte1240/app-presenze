@@ -1,98 +1,69 @@
-import { Clock3 } from "lucide-react";
+import { CalendarDays, Clock, Clock3, Shield } from "lucide-react";
 import { t } from "../../i18n/it";
 import { cn } from "../../ui/cn";
 
-/**
- * A month of working days, drawn as the rhythm it is.
- *
- * The decoration on a sign-in screen is usually a stock illustration or a flat
- * block of brand colour. This is neither: it is the product's own vocabulary —
- * the same columns the report chart draws and the same meter that sits under
- * every calendar day — turned down to a whisper. It says "hours across days"
- * before a word is read, and it cannot go out of date with the product because
- * it is made of the product.
- *
- * The pattern is fixed, not generated: five weeks of full days with the
- * weekends left as gaps, a couple of short days and one long one. Random
- * heights would read as noise.
- */
-const RHYTHM: ReadonlyArray<{ base: number; tip?: number }> = [
-  { base: 0.86 }, { base: 0.9 }, { base: 1 }, { base: 0.82, tip: 0.12 }, { base: 0.94 }, { base: 0 }, { base: 0 },
-  { base: 1 }, { base: 0.72, tip: 0.2 }, { base: 0.9 }, { base: 1 }, { base: 0.78 }, { base: 0 }, { base: 0 },
-  { base: 0.92 }, { base: 1 }, { base: 0.58, tip: 0.3 }, { base: 0.88 }, { base: 1, tip: 0.22 }, { base: 0 }, { base: 0 },
-  { base: 0.84 }, { base: 0.96 }, { base: 1 }, { base: 0.9 }, { base: 0.76, tip: 0.16 }, { base: 0 }, { base: 0 },
-];
+const FEATURES = [
+  { icon: Clock, ...t.auth.features.hours },
+  { icon: CalendarDays, ...t.auth.features.leave },
+  { icon: Shield, ...t.auth.features.admin },
+] as const;
 
-export function BrandPanel({ className }: { className?: string }) {
+/**
+ * The sign-in panel.
+ *
+ * Deliberately the recessed surface rather than a block of brand colour: the
+ * split then has a reason to exist in both themes, and the headline can be set
+ * in the ordinary text colour instead of white-on-accent. The texture is a
+ * faint dot grid under a radial mask — it reads as engineered rather than
+ * decorated, and it costs one gradient.
+ */
+export function BrandPanel({ className, companyName }: { className?: string; companyName: string }) {
   return (
     <aside
       className={cn(
-        "relative isolate flex flex-col justify-center overflow-hidden p-10 text-white",
-        "bg-[linear-gradient(152deg,hsl(var(--panel-from)),hsl(var(--panel-to)))]",
+        "relative flex-col justify-between overflow-hidden border-r border-border bg-surface-sunken/50 p-10 xl:p-14",
         className,
       )}
     >
-      {/* A single soft highlight, so the surface reads as lit rather than filled. */}
-      <span
+      <div
         aria-hidden
-        className="pointer-events-none absolute -left-24 -top-24 -z-10 size-[28rem] rounded-full bg-white/12 blur-3xl"
+        className="pointer-events-none absolute inset-0 opacity-70 dark:opacity-40"
+        style={{
+          backgroundImage:
+            "radial-gradient(circle at 1px 1px, hsl(var(--muted-foreground) / 0.35) 1px, transparent 0)",
+          backgroundSize: "22px 22px",
+          maskImage: "radial-gradient(ellipse 90% 70% at 30% 20%, black, transparent)",
+          WebkitMaskImage: "radial-gradient(ellipse 90% 70% at 30% 20%, black, transparent)",
+        }}
       />
 
-      <div className="absolute inset-x-10 top-10 flex items-center gap-2 text-label font-semibold">
-        <Clock3 className="size-5" aria-hidden />
+      <div className="relative z-10 flex items-center gap-2 text-title font-semibold">
+        <Clock3 className="size-6 text-primary" aria-hidden />
         {t.app.name}
       </div>
 
-      {/*
-        One centred block, with the mark floated out to the corner.
+      <div className="relative z-10 max-w-lg">
+        <h1 className="text-hero font-semibold tracking-[-0.03em] text-foreground">{t.auth.tagline}</h1>
+        <p className="mt-5 text-title leading-relaxed text-muted-foreground">{t.auth.taglineHint}</p>
 
-        Spreading the three pieces across the full height with
-        `justify-between` left a third of the panel as dead air, and pinning
-        them to the floor only moved that hole to the top. Centred, the message
-        also lands at the same height as the form on the other side, so the two
-        halves read as one composition rather than two columns.
-      */}
-      <div>
-        <div className="max-w-sm">
-          <p className="text-2xl font-semibold leading-snug tracking-[-0.02em]">{t.auth.tagline}</p>
-          <p className="mt-3 text-body text-white/75">{t.auth.taglineHint}</p>
-        </div>
-          <Rhythm className="mt-10 h-20" />
+        <ul className="mt-10 space-y-5">
+          {FEATURES.map(({ icon: Icon, title, body }) => (
+            <li key={title} className="flex items-start gap-3.5">
+              <span className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-md border border-border bg-surface text-muted-foreground">
+                <Icon className="size-4" aria-hidden />
+              </span>
+              <div>
+                <p className="text-body font-medium text-foreground">{title}</p>
+                <p className="mt-0.5 text-body leading-relaxed text-muted-foreground">{body}</p>
+              </div>
+            </li>
+          ))}
+        </ul>
       </div>
+
+      <p className="relative z-10 text-label text-muted-foreground">
+        © {new Date().getFullYear()} {companyName}
+      </p>
     </aside>
-  );
-}
-
-/**
- * `onBrand` draws in white over the panel; the plain tone draws in the accent,
- * for the phone layout where the panel is not shown at all.
- */
-export function Rhythm({ className, onBrand = true }: { className?: string; onBrand?: boolean }) {
-  const tip = onBrand ? "bg-white/55" : "bg-primary/45";
-  const base = onBrand ? "bg-white/22" : "bg-primary/18";
-  const gap = onBrand ? "bg-white/12" : "bg-primary/12";
-
-  return (
-    <div aria-hidden className={cn("flex items-end gap-[3px]", className)}>
-      {RHYTHM.map((day, index) => (
-        <span key={index} className="flex h-full flex-1 flex-col justify-end">
-          {day.base > 0 ? (
-            <>
-              {day.tip ? (
-                <span className={cn("w-full rounded-t-[3px]", tip)} style={{ height: `${day.tip * 100}%` }} />
-              ) : null}
-              <span
-                className={cn("w-full", base, day.tip ? "mt-[2px]" : "rounded-t-[3px]")}
-                style={{ height: `${day.base * 100}%` }}
-              />
-            </>
-          ) : (
-            // Weekends are the gaps. Leaving them empty is what makes the row
-            // read as a month rather than as a bar chart of nothing.
-            <span className={cn("h-[2px] w-full rounded-full", gap)} />
-          )}
-        </span>
-      ))}
-    </div>
   );
 }
