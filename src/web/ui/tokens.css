@@ -76,6 +76,25 @@
   --destructive-foreground: 0 0% 100%;
 }
 
+:root {
+  color-scheme: light;
+}
+
+.dark {
+  color-scheme: dark;
+}
+
+select option,
+select optgroup {
+  background-color: hsl(var(--surface));
+  color: hsl(var(--foreground));
+}
+
+select option:checked {
+  background-color: hsl(var(--primary));
+  color: hsl(var(--primary-foreground));
+}
+
 /*
   Aliases kept so the Tailwind colour utilities read naturally in components.
   `card` and `popover` are the same surface; only in dark mode does a popover
