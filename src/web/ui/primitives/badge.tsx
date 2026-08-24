@@ -4,7 +4,7 @@ import { cn } from "../cn";
 export type Tone = "neutral" | "primary" | "success" | "warning" | "danger" | "info";
 
 const TONES: Record<Tone, string> = {
-  neutral: "bg-muted text-muted-foreground",
+  neutral: "bg-surface-sunken text-muted-foreground",
   primary: "bg-primary/10 text-primary",
   success: "bg-success-subtle text-success",
   warning: "bg-warning-subtle text-warning",
@@ -12,6 +12,7 @@ const TONES: Record<Tone, string> = {
   info: "bg-info-subtle text-info",
 };
 
+/** Flat: no ring, no gradient. A badge is a label, not a button. */
 export function Badge({
   tone = "neutral",
   dot = false,
@@ -26,7 +27,7 @@ export function Badge({
   return (
     <span
       className={cn(
-        "inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[11px] font-medium ring-1 ring-inset ring-current/15",
+        "inline-flex items-center gap-1.5 rounded-xs px-1.5 py-0.5 text-micro font-medium",
         TONES[tone],
         className,
       )}

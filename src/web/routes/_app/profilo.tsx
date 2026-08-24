@@ -42,13 +42,13 @@ function ProfilePage() {
     (missing.data?.editable.length ?? 0) === 0 && (missing.data?.requiresAdmin.length ?? 0) === 0;
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-4">
       <header>
-        <h2 className="text-lg font-semibold">{t.profile.title}</h2>
-        <p className="text-[13px] text-muted-foreground">{t.profile.subtitle}</p>
+        <h2 className="text-display font-semibold tracking-[-0.02em]">{t.profile.title}</h2>
+        <p className="mt-0.5 text-label text-muted-foreground">{t.profile.subtitle}</p>
       </header>
 
-      <div className="grid gap-5 lg:grid-cols-2">
+      <div className="grid gap-4 lg:grid-cols-2">
         <Card>
           <CardBody className="flex items-center gap-4">
             <Avatar name={user.name} className="size-12 text-sm" />
@@ -69,7 +69,7 @@ function ProfilePage() {
           <CardHeader title={t.profile.missingDays} />
           <CardBody>
             {missing.isLoading ? (
-              <p className="text-[13px] text-muted-foreground">{t.app.loading}</p>
+              <p className="mt-0.5 text-label text-muted-foreground">{t.app.loading}</p>
             ) : nothingMissing ? (
               <Alert tone="success">{t.profile.missingDaysNone}</Alert>
             ) : (

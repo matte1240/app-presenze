@@ -10,6 +10,6 @@ export { Field, Input, Label, NativeSelect, Textarea } from "./field";
 export { MonthPicker } from "./month-picker";
 export { Segmented, type SegmentOption } from "./segmented";
 export { Skeleton, SkeletonRows } from "./skeleton";
-export { Stat } from "./stat";
+export { SummaryBar, type Metric } from "./summary-bar";
 export { Table, TableWrapper, TBody, TD, TH, THead, TR } from "./table";
 export { ToastProvider, useToast } from "./toast";

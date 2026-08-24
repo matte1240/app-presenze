@@ -12,9 +12,9 @@ interface Toast {
 
 const ICONS: Record<Tone, typeof Info> = { success: CheckCircle2, error: XCircle, info: Info };
 const TONES: Record<Tone, string> = {
-  success: "bg-success-subtle text-success",
-  error: "bg-destructive-subtle text-destructive",
-  info: "bg-info-subtle text-info",
+  success: "text-success",
+  error: "text-destructive",
+  info: "text-info",
 };
 
 const ToastContext = createContext<((tone: Tone, message: string) => void) | null>(null);
@@ -31,19 +31,20 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   return (
     <ToastContext.Provider value={push}>
       {children}
-      <div className="pointer-events-none fixed bottom-4 right-4 z-[60] flex w-[min(22rem,calc(100vw-2rem))] flex-col gap-2" aria-live="polite">
+      <div
+        className="pointer-events-none fixed bottom-3 right-3 z-[60] flex w-[min(20rem,calc(100vw-1.5rem))] flex-col gap-1.5"
+        aria-live="polite"
+      >
         {toasts.map((toast) => {
           const Icon = ICONS[toast.tone];
           return (
             <div
               key={toast.id}
-              className={cn(
-                "pointer-events-auto flex items-start gap-2.5 rounded-md px-3.5 py-2.5 text-[13px]",
-                "shadow-elevation-2 ring-1 ring-inset ring-current/15",
-                TONES[toast.tone],
-              )}
+              // One surface for every tone; only the icon carries the status,
+              // which keeps a success message from shouting.
+              className="pointer-events-auto flex items-start gap-2 rounded-sm border border-border bg-surface px-3 py-2 text-label shadow-dialog"
             >
-              <Icon className="mt-0.5 size-4 shrink-0" aria-hidden />
+              <Icon className={cn("mt-px size-3.5 shrink-0", TONES[toast.tone])} aria-hidden />
               <span className="min-w-0 flex-1">{toast.message}</span>
             </div>
           );

@@ -1,6 +1,6 @@
 import { cn } from "../cn";
 
-/** Initials on a tinted disc; no image upload exists in this product. */
+/** Initials on a neutral disc; no image upload exists in this product. */
 export function Avatar({ name, className }: { name: string; className?: string }) {
   const initials = name
     .split(/\s+/)
@@ -13,8 +13,8 @@ export function Avatar({ name, className }: { name: string; className?: string }
     <span
       aria-hidden
       className={cn(
-        "inline-flex size-8 shrink-0 items-center justify-center rounded-full",
-        "bg-primary/10 text-[11px] font-semibold text-primary",
+        "inline-flex size-6 shrink-0 items-center justify-center rounded-full",
+        "bg-surface-sunken text-micro font-semibold text-muted-foreground",
         className,
       )}
     >

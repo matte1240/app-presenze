@@ -7,9 +7,8 @@ export interface SegmentOption<T extends string> {
 }
 
 /**
- * A radio group that looks like a switch. Used for the day type and for
- * anywhere a handful of exclusive choices need to stay visible at once —
- * previously inlined ad hoc in two different screens.
+ * A radio group that looks like a switch, for a handful of exclusive choices
+ * that all need to stay visible.
  */
 export function Segmented<T extends string>({
   value,
@@ -25,7 +24,11 @@ export function Segmented<T extends string>({
   className?: string;
 }) {
   return (
-    <div role="radiogroup" aria-label={label} className={cn("inline-flex gap-1 rounded-lg bg-muted p-1", className)}>
+    <div
+      role="radiogroup"
+      aria-label={label}
+      className={cn("inline-flex gap-0.5 rounded-sm border border-border bg-surface-sunken p-0.5", className)}
+    >
       {options.map((option) => {
         const active = option.value === value;
         return (
@@ -36,9 +39,9 @@ export function Segmented<T extends string>({
             aria-checked={active}
             onClick={() => onChange(option.value)}
             className={cn(
-              "flex-1 rounded-md px-3 py-1.5 text-[13px] font-medium transition-colors",
+              "flex-1 rounded-xs px-2.5 py-1 text-label font-medium transition-colors",
               active
-                ? "bg-card text-foreground shadow-elevation-1"
+                ? "bg-surface text-foreground shadow-popover"
                 : "text-muted-foreground hover:text-foreground",
             )}
           >

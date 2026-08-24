@@ -16,7 +16,7 @@ import {
   Checkbox,
   MonthPicker,
   SkeletonRows,
-  Stat,
+  SummaryBar,
   Table,
   TableWrapper,
   TBody,
@@ -100,11 +100,11 @@ function ReportsPage() {
   const allSelected = isAdmin && selected.length === (people.data ?? []).length && selected.length > 0;
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-4">
       <header className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h2 className="text-lg font-semibold">{t.reports.title}</h2>
-          <p className="text-[13px] text-muted-foreground">{t.reports.subtitle}</p>
+          <h2 className="text-display font-semibold tracking-[-0.02em]">{t.reports.title}</h2>
+          <p className="mt-0.5 text-label text-muted-foreground">{t.reports.subtitle}</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <MonthPicker value={month} monthNames={t.months} onChange={setMonth} />
@@ -115,16 +115,18 @@ function ReportsPage() {
         </div>
       </header>
 
-      <div className="grid gap-3 sm:grid-cols-3">
-        <Stat label={t.timesheet.regular} value={`${teamTotals.regular}h`} tone="primary" loading={entries.isLoading} />
-        <Stat label={t.timesheet.overtime} value={`${teamTotals.overtime}h`} tone="warning" loading={entries.isLoading} />
-        <Stat
-          label={`${t.timesheet.leave} + ${t.timesheet.vacation}`}
-          value={`${teamTotals.leave}h`}
-          tone="info"
-          loading={entries.isLoading}
-        />
-      </div>
+      <SummaryBar
+        loading={entries.isLoading}
+        metrics={[
+          { key: "regular", label: t.timesheet.regular, value: `${teamTotals.regular}h`, lead: true },
+          { key: "overtime", label: t.timesheet.overtime, value: `${teamTotals.overtime}h`, tone: "warning" },
+          {
+            key: "leave",
+            label: `${t.timesheet.leave} + ${t.timesheet.vacation}`,
+            value: `${teamTotals.leave}h`,
+          },
+        ]}
+      />
 
       <Card>
         <CardHeader

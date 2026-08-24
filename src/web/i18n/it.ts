@@ -46,6 +46,7 @@ export const t = {
     passwordChanged: "Password aggiornata. Accedi di nuovo.",
     sessionExpired: "Sessione scaduta per inattività.",
     tagline: "Ore, ferie e permessi in un posto solo.",
+    signInHint: "Inserisci le tue credenziali per continuare.",
   },
 
   setup: {

@@ -24,16 +24,16 @@ export function Checkbox({
 }) {
   const id = useId();
   return (
-    <div className={cn("flex items-start gap-2.5", className)}>
+    <div className={cn("flex items-start gap-2", className)}>
       <CheckboxPrimitive.Root
         id={id}
         checked={checked}
         onCheckedChange={(value) => onCheckedChange(value === true)}
         disabled={disabled}
         className={cn(
-          "mt-0.5 flex size-4 shrink-0 items-center justify-center rounded-[4px] border border-input bg-card",
+          "mt-px flex size-4 shrink-0 items-center justify-center rounded-[3px] border border-border-strong bg-surface",
           "transition-colors data-[state=checked]:border-primary data-[state=checked]:bg-primary",
-          "data-[state=checked]:text-primary-foreground disabled:opacity-50",
+          "data-[state=checked]:text-primary-foreground disabled:opacity-45",
         )}
       >
         <CheckboxPrimitive.Indicator>
@@ -41,10 +41,12 @@ export function Checkbox({
         </CheckboxPrimitive.Indicator>
       </CheckboxPrimitive.Root>
       <div className="min-w-0">
-        <label htmlFor={id} className={cn("text-[13px] leading-tight", disabled && "opacity-60")}>
-          {label}
-        </label>
-        {hint ? <p className="mt-0.5 text-[12px] text-muted-foreground">{hint}</p> : null}
+        {label ? (
+          <label htmlFor={id} className={cn("text-label leading-tight", disabled && "opacity-60")}>
+            {label}
+          </label>
+        ) : null}
+        {hint ? <p className="mt-0.5 text-micro text-muted-foreground">{hint}</p> : null}
       </div>
     </div>
   );

@@ -2,14 +2,6 @@ import { cn } from "../../ui/cn";
 import { t } from "../../i18n/it";
 import type { DayCellModel } from "./view-model";
 
-const STATE_STYLES: Record<DayCellModel["state"], string> = {
-  filled: "bg-card",
-  leave: "bg-info-subtle/60",
-  missing: "bg-destructive-subtle/50",
-  closed: "bg-muted/40",
-  empty: "bg-card",
-};
-
 /**
  * Presentation only. Every decision — editable, missing, which badge — was
  * made in `buildMonth`; this renders what it was handed.
@@ -22,10 +14,13 @@ export function MonthGrid({
   onSelect: (cell: DayCellModel) => void;
 }) {
   return (
-    <div className="overflow-hidden rounded-lg border border-border bg-card">
-      <div className="grid grid-cols-7 border-b border-border bg-muted/40">
+    <div className="overflow-hidden rounded-md border border-border bg-surface">
+      <div className="grid grid-cols-7 border-b border-border bg-surface-sunken/60">
         {[1, 2, 3, 4, 5, 6, 0].map((weekday) => (
-          <div key={weekday} className="px-2 py-2 text-center text-[11px] font-medium text-muted-foreground">
+          <div
+            key={weekday}
+            className="px-2 py-1.5 text-center text-micro font-medium uppercase tracking-[0.04em] text-muted-foreground"
+          >
             {t.weekdaysShort[weekday]}
           </div>
         ))}
@@ -40,8 +35,27 @@ export function MonthGrid({
   );
 }
 
+/**
+ * What the hour count alone cannot say. A plain full day gets nothing: the
+ * number is already the whole story, and repeating "lavorate" under every cell
+ * turned the month into a wall of the same word.
+ */
+function footnoteFor(cell: DayCellModel): string | null {
+  const entry = cell.entry;
+  if (!entry) return null;
+  if (entry.kind !== "work") return t.timesheet.dayTypes[entry.kind].toLowerCase();
+  if (entry.overtimeHours > 0) return `+${entry.overtimeHours}h ${t.timesheet.overtime.toLowerCase()}`;
+  const leave = entry.leaveHours + entry.leave104Hours;
+  if (leave > 0) return `+${leave}h ${t.timesheet.leave.toLowerCase()}`;
+  return null;
+}
+
 function DayCell({ cell, onSelect }: { cell: DayCellModel; onSelect: (cell: DayCellModel) => void }) {
   const interactive = cell.inMonth && cell.editable;
+  // A day still to be filled in is a task, not a failure: it gets a marker on
+  // the edge rather than a red wash over the whole cell.
+  const missing = cell.state === "missing";
+  const closed = cell.state === "closed";
 
   return (
     <button
@@ -50,18 +64,23 @@ function DayCell({ cell, onSelect }: { cell: DayCellModel; onSelect: (cell: DayC
       onClick={() => onSelect(cell)}
       title={cell.holiday ?? undefined}
       className={cn(
-        "relative flex min-h-20 flex-col items-start gap-1 border-b border-r border-border p-1.5 text-left transition-colors sm:min-h-24 sm:p-2",
-        STATE_STYLES[cell.state],
-        !cell.inMonth && "opacity-35",
-        interactive ? "hover:bg-accent" : "cursor-default",
+        "relative flex min-h-16 flex-col gap-1 border-b border-r border-border p-1.5 text-left transition-colors sm:min-h-24 sm:p-2",
+        closed ? "bg-surface-sunken" : "bg-surface",
+        !cell.inMonth && "opacity-40",
+        interactive ? "hover:bg-surface-sunken" : "cursor-default",
       )}
     >
-      <span className="flex w-full items-center justify-between gap-1">
+      {missing ? (
+        <span className="absolute inset-y-1.5 left-0 w-0.5 rounded-r-full bg-destructive/70" aria-hidden />
+      ) : null}
+
+      <span className="flex items-center justify-between gap-1">
         <span
           className={cn(
-            "flex size-6 items-center justify-center rounded-full text-[12px] font-medium tabular-nums",
-            cell.isToday && "bg-primary text-primary-foreground",
-            !cell.isToday && cell.holiday && "text-destructive",
+            "inline-flex size-5 items-center justify-center rounded-full text-label tabular-nums",
+            cell.isToday && "bg-primary font-semibold text-primary-foreground",
+            !cell.isToday && cell.holiday && "font-medium text-destructive",
+            !cell.isToday && !cell.holiday && "text-muted-foreground",
           )}
         >
           {cell.dayOfMonth}
@@ -72,19 +91,17 @@ function DayCell({ cell, onSelect }: { cell: DayCellModel; onSelect: (cell: DayC
       </span>
 
       {cell.entry ? (
-        <span className="w-full min-w-0">
-          <span className="hidden truncate text-[11px] text-muted-foreground sm:block">
-            {cell.entry.kind === "work" ? t.timesheet.worked : t.timesheet.dayTypes[cell.entry.kind]}
-          </span>
-          <span className="block text-[13px] font-semibold tabular-nums">{cell.hours}h</span>
-          {cell.entry.overtimeHours > 0 ? (
-            <span className="block text-[11px] text-warning">+{cell.entry.overtimeHours}h</span>
+        <span className="min-w-0">
+          {/* The hours are the message; the label is the footnote. */}
+          <span className="block text-title font-semibold leading-none tabular-nums">{cell.hours}h</span>
+          {footnoteFor(cell) ? (
+            <span className="mt-1 hidden truncate text-micro text-muted-foreground sm:block">
+              {footnoteFor(cell)}
+            </span>
           ) : null}
         </span>
       ) : cell.holiday ? (
-        <span className="line-clamp-2 text-[11px] leading-tight text-muted-foreground">{cell.holiday}</span>
-      ) : cell.state === "missing" ? (
-        <span className="hidden text-[11px] text-destructive sm:block">{t.timesheet.emptyDay}</span>
+        <span className="hidden line-clamp-2 text-micro leading-tight text-muted-foreground sm:block">{cell.holiday}</span>
       ) : null}
     </button>
   );

@@ -1,8 +1,14 @@
 import type { HTMLAttributes, ReactNode } from "react";
 import { cn } from "../cn";
 
+/** A hairline, not a shadow. Panels sit on the page rather than above it. */
 export function Card({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
-  return <div className={cn("rounded-lg border border-border bg-card text-card-foreground shadow-elevation-1", className)} {...props} />;
+  return (
+    <div
+      className={cn("overflow-hidden rounded-md border border-border bg-surface text-foreground", className)}
+      {...props}
+    />
+  );
 }
 
 export function CardHeader({
@@ -17,16 +23,21 @@ export function CardHeader({
   className?: string;
 }) {
   return (
-    <div className={cn("flex items-start justify-between gap-4 border-b border-border px-5 py-4", className)}>
+    <div
+      className={cn(
+        "flex items-center justify-between gap-3 border-b border-border bg-surface-sunken/60 px-4 py-2.5",
+        className,
+      )}
+    >
       <div className="min-w-0">
-        <h3 className="text-sm font-semibold">{title}</h3>
-        {description ? <p className="mt-0.5 text-[13px] text-muted-foreground">{description}</p> : null}
+        <h3 className="truncate text-label font-semibold">{title}</h3>
+        {description ? <p className="mt-0.5 text-micro text-muted-foreground">{description}</p> : null}
       </div>
-      {actions ? <div className="flex shrink-0 items-center gap-2">{actions}</div> : null}
+      {actions ? <div className="flex shrink-0 items-center gap-1.5">{actions}</div> : null}
     </div>
   );
 }
 
 export function CardBody({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
-  return <div className={cn("p-5", className)} {...props} />;
+  return <div className={cn("p-4", className)} {...props} />;
 }

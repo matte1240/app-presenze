@@ -64,7 +64,7 @@ function LoginPage() {
       <main className="flex items-center justify-center p-6">
         <div className="w-full max-w-sm">
           <h1 className="text-xl font-semibold">{t.auth.signIn}</h1>
-          <p className="mt-1 text-[13px] text-muted-foreground">{t.auth.tagline}</p>
+          <p className="mt-1 text-body text-muted-foreground">{t.auth.signInHint}</p>
 
           {search.expired ? (
             <Alert tone="warning" className="mt-4">
@@ -94,7 +94,7 @@ function LoginPage() {
               <Alert tone="danger">{form.formState.errors.root.message}</Alert>
             ) : null}
 
-            <Button type="submit" className="w-full" loading={form.formState.isSubmitting}>
+            <Button type="submit" size="lg" className="w-full" loading={form.formState.isSubmitting}>
               {t.auth.signIn}
             </Button>
           </form>

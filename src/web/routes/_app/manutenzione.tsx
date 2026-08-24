@@ -35,10 +35,10 @@ function MaintenancePage() {
   const [restoreOpen, setRestoreOpen] = useState(false);
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-4">
       <header>
-        <h2 className="text-lg font-semibold">{t.maintenance.title}</h2>
-        <p className="text-[13px] text-muted-foreground">{t.maintenance.subtitle}</p>
+        <h2 className="text-display font-semibold tracking-[-0.02em]">{t.maintenance.title}</h2>
+        <p className="mt-0.5 text-label text-muted-foreground">{t.maintenance.subtitle}</p>
       </header>
 
       <Card>
@@ -159,7 +159,7 @@ function RestoreDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (o
         </Button>
 
         {file ? (
-          <p className="text-[13px] text-muted-foreground">
+          <p className="mt-0.5 text-label text-muted-foreground">
             {file.name} — {megabytes(file.size)}
           </p>
         ) : null}

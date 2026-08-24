@@ -19,7 +19,7 @@ import { DayDialog, type DayFormState } from "../../features/timesheet/day-dialo
 import { MonthGrid } from "../../features/timesheet/month-grid";
 import { buildMonth, type DayCellModel } from "../../features/timesheet/view-model";
 import { t } from "../../i18n/it";
-import { Button, MonthPicker, NativeSelect, SkeletonRows, Stat, useToast } from "../../ui/primitives";
+import { Button, MonthPicker, NativeSelect, SkeletonRows, SummaryBar, useToast } from "../../ui/primitives";
 
 export const Route = createFileRoute("/_app/calendario")({
   validateSearch: z.object({
@@ -134,17 +134,17 @@ function CalendarPage() {
   };
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-4">
       <header className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h2 className="text-lg font-semibold">{t.timesheet.title}</h2>
-          <p className="text-[13px] text-muted-foreground">{t.timesheet.subtitle}</p>
+          <h2 className="text-display font-semibold tracking-[-0.02em]">{t.timesheet.title}</h2>
+          <p className="mt-0.5 text-label text-muted-foreground">{t.timesheet.subtitle}</p>
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
           {isAdmin ? (
             <NativeSelect
-              className="w-48"
+              className="w-44"
               aria-label={t.timesheet.selectUser}
               value={targetUserId}
               onChange={(event) => navigate({ search: (prev) => ({ ...prev, userId: event.target.value }) })}
@@ -172,17 +172,25 @@ function CalendarPage() {
         </div>
       </header>
 
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <Stat label={t.timesheet.regular} value={`${model.totals.regular}h`} loading={loading} tone="primary" />
-        <Stat label={t.timesheet.overtime} value={`${model.totals.overtime}h`} loading={loading} tone="warning" />
-        <Stat
-          label={`${t.timesheet.leave} + ${t.timesheet.vacation}`}
-          value={`${model.totals.leave + model.totals.leave104 + model.totals.vacation}h`}
-          loading={loading}
-          tone="info"
-        />
-        <Stat label={t.timesheet.sickness} value={`${model.totals.sickness}h`} loading={loading} />
-      </div>
+      <SummaryBar
+        loading={loading}
+        metrics={[
+          { key: "regular", label: t.timesheet.regular, value: `${model.totals.regular}h`, lead: true },
+          {
+            key: "overtime",
+            label: t.timesheet.overtime,
+            value: `${model.totals.overtime}h`,
+            // Tinting a zero draws the eye to the absence of anything.
+            tone: model.totals.overtime > 0 ? "warning" : "default",
+          },
+          {
+            key: "leave",
+            label: `${t.timesheet.leave} + ${t.timesheet.vacation}`,
+            value: `${model.totals.leave + model.totals.leave104 + model.totals.vacation}h`,
+          },
+          { key: "sickness", label: t.timesheet.sickness, value: `${model.totals.sickness}h` },
+        ]}
+      />
 
       {loading ? <SkeletonRows rows={6} /> : <MonthGrid weeks={model.weeks} onSelect={setSelected} />}
 

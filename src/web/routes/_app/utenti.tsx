@@ -67,11 +67,11 @@ function UsersPage() {
   };
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-4">
       <header className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h2 className="text-lg font-semibold">{t.users.title}</h2>
-          <p className="text-[13px] text-muted-foreground">{t.users.subtitle}</p>
+          <h2 className="text-display font-semibold tracking-[-0.02em]">{t.users.title}</h2>
+          <p className="mt-0.5 text-label text-muted-foreground">{t.users.subtitle}</p>
         </div>
         <Button onClick={() => setCreateOpen(true)}>
           <Plus aria-hidden />
