@@ -49,9 +49,9 @@ export default tseslint.config(
 
   {
     files: ["src/web/**"],
-    ...reactHooks.configs["recommended-latest"],
+    ...reactHooks.configs.flat["recommended-latest"],
     rules: {
-      ...reactHooks.configs["recommended-latest"].rules,
+      ...reactHooks.configs.flat["recommended-latest"].rules,
       "@typescript-eslint/no-restricted-imports": [
         "error",
         {

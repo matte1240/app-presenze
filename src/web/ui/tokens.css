@@ -1,0 +1,213 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+/*
+  ---------------------------------------------------------------------------
+  Design tokens.
+
+  This file is the whole of the product's visual identity. Components below
+  `ui/primitives` reference these names and never a literal colour, radius or
+  shadow, and a lint rule keeps `ui/` from importing feature code — so
+  restyling the application means editing this file and the primitives, and
+  nothing under `features/`, `api/` or `core/`.
+  ---------------------------------------------------------------------------
+*/
+:root {
+  --background: 240 9% 98%;
+  --foreground: 240 10% 8%;
+  --card: 0 0% 100%;
+  --card-foreground: 240 10% 8%;
+  --popover: 0 0% 100%;
+  --popover-foreground: 240 10% 8%;
+  --primary: 243 72% 58%;
+  --primary-foreground: 0 0% 100%;
+  --secondary: 240 6% 96%;
+  --secondary-foreground: 240 9% 14%;
+  --muted: 240 6% 96%;
+  --muted-foreground: 240 4% 46%;
+  --accent: 240 6% 95%;
+  --accent-foreground: 240 9% 14%;
+  --destructive: 0 72% 51%;
+  --destructive-foreground: 0 0% 100%;
+  --border: 240 6% 90%;
+  --input: 240 6% 90%;
+  --ring: 243 72% 58%;
+  --radius: 0.625rem;
+}
+
+.dark {
+  --background: 240 10% 4%;
+  --foreground: 240 6% 96%;
+  --card: 240 8% 7%;
+  --card-foreground: 240 6% 96%;
+  --popover: 240 8% 8%;
+  --popover-foreground: 240 6% 96%;
+  --primary: 243 75% 68%;
+  --primary-foreground: 240 10% 6%;
+  --secondary: 240 6% 13%;
+  --secondary-foreground: 240 6% 96%;
+  --muted: 240 6% 13%;
+  --muted-foreground: 240 5% 60%;
+  --accent: 240 6% 15%;
+  --accent-foreground: 240 6% 96%;
+  --destructive: 0 72% 58%;
+  --destructive-foreground: 0 0% 100%;
+  --border: 240 6% 16%;
+  --input: 240 6% 18%;
+  --ring: 243 75% 68%;
+}
+
+/*
+  Status tokens are deliberately outside the brand palette. These carry meaning
+  rather than identity: green has to read as "approved" and red as "rejected"
+  whatever colour the company logo is, so repainting them would break
+  comprehension rather than personalise anything.
+*/
+:root {
+  --success: 158 64% 35%;
+  --success-foreground: 0 0% 100%;
+  --success-subtle: 152 60% 95%;
+  --warning: 32 90% 44%;
+  --warning-foreground: 0 0% 100%;
+  --warning-subtle: 44 96% 94%;
+  --info: 205 85% 45%;
+  --info-foreground: 0 0% 100%;
+  --info-subtle: 204 94% 95%;
+  --destructive-subtle: 0 90% 96%;
+}
+
+.dark {
+  --success: 158 58% 48%;
+  --success-foreground: 158 80% 6%;
+  --success-subtle: 158 50% 12%;
+  --warning: 38 92% 58%;
+  --warning-foreground: 32 90% 8%;
+  --warning-subtle: 36 60% 13%;
+  --info: 205 90% 62%;
+  --info-foreground: 205 90% 8%;
+  --info-subtle: 205 60% 14%;
+  --destructive-subtle: 0 50% 14%;
+}
+
+/*
+  Layered surfaces rather than drop shadows: a hairline carries the edge and
+  the shadow only suggests depth. Alpha stays under 0.08 in light mode so
+  panels read as paper, not as floating cards.
+*/
+:root {
+  --shadow-color: 240 12% 12%;
+  --elevation-1: 0 1px 2px -1px hsl(var(--shadow-color) / 0.08), 0 1px 3px 0 hsl(var(--shadow-color) / 0.05);
+  --elevation-2: 0 2px 4px -2px hsl(var(--shadow-color) / 0.08), 0 4px 12px -2px hsl(var(--shadow-color) / 0.06);
+  --elevation-3: 0 8px 24px -8px hsl(var(--shadow-color) / 0.14), 0 2px 6px -2px hsl(var(--shadow-color) / 0.08);
+}
+
+.dark {
+  --shadow-color: 0 0% 0%;
+  --elevation-1: 0 1px 2px -1px hsl(var(--shadow-color) / 0.6), 0 1px 3px 0 hsl(var(--shadow-color) / 0.4);
+  --elevation-2: 0 2px 4px -2px hsl(var(--shadow-color) / 0.6), 0 4px 12px -2px hsl(var(--shadow-color) / 0.45);
+  --elevation-3: 0 8px 24px -8px hsl(var(--shadow-color) / 0.7), 0 2px 6px -2px hsl(var(--shadow-color) / 0.5);
+}
+
+@theme inline {
+  --color-background: hsl(var(--background));
+  --color-foreground: hsl(var(--foreground));
+  --color-card: hsl(var(--card));
+  --color-card-foreground: hsl(var(--card-foreground));
+  --color-popover: hsl(var(--popover));
+  --color-popover-foreground: hsl(var(--popover-foreground));
+  --color-primary: hsl(var(--primary));
+  --color-primary-foreground: hsl(var(--primary-foreground));
+  --color-secondary: hsl(var(--secondary));
+  --color-secondary-foreground: hsl(var(--secondary-foreground));
+  --color-muted: hsl(var(--muted));
+  --color-muted-foreground: hsl(var(--muted-foreground));
+  --color-accent: hsl(var(--accent));
+  --color-accent-foreground: hsl(var(--accent-foreground));
+  --color-destructive: hsl(var(--destructive));
+  --color-destructive-foreground: hsl(var(--destructive-foreground));
+  --color-destructive-subtle: hsl(var(--destructive-subtle));
+  --color-success: hsl(var(--success));
+  --color-success-foreground: hsl(var(--success-foreground));
+  --color-success-subtle: hsl(var(--success-subtle));
+  --color-warning: hsl(var(--warning));
+  --color-warning-foreground: hsl(var(--warning-foreground));
+  --color-warning-subtle: hsl(var(--warning-subtle));
+  --color-info: hsl(var(--info));
+  --color-info-foreground: hsl(var(--info-foreground));
+  --color-info-subtle: hsl(var(--info-subtle));
+  --color-border: hsl(var(--border));
+  --color-input: hsl(var(--input));
+  --color-ring: hsl(var(--ring));
+
+  --radius-xs: calc(var(--radius) - 4px);
+  --radius-sm: calc(var(--radius) - 2px);
+  --radius-md: var(--radius);
+  --radius-lg: calc(var(--radius) + 2px);
+  --radius-xl: calc(var(--radius) + 6px);
+  --radius-2xl: calc(var(--radius) + 12px);
+
+  --shadow-elevation-1: var(--elevation-1);
+  --shadow-elevation-2: var(--elevation-2);
+  --shadow-elevation-3: var(--elevation-3);
+
+  /* Motion: short and eased, never bouncy. Interfaces this dense should settle. */
+  --ease-out-quart: cubic-bezier(0.25, 1, 0.5, 1);
+}
+
+@layer base {
+  * {
+    border-color: hsl(var(--border));
+  }
+
+  body {
+    background-color: hsl(var(--background));
+    color: hsl(var(--foreground));
+    /* Tabular figures throughout: hour counts and dates must not jitter as
+       they update, and this is a timesheet before it is anything else. */
+    font-variant-numeric: tabular-nums;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  h1, h2, h3, h4 {
+    font-weight: 600;
+    letter-spacing: -0.02em;
+  }
+
+  /* One focus treatment for the whole product, visible on every surface. */
+  :focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 2px hsl(var(--background)), 0 0 0 4px hsl(var(--ring) / 0.6);
+  }
+
+  ::selection {
+    background-color: hsl(var(--primary) / 0.18);
+  }
+}
+
+@layer utilities {
+  /* A hairline that survives dark mode, where a plain border disappears. */
+  .ring-hairline {
+    box-shadow: inset 0 0 0 1px hsl(var(--border));
+  }
+
+  .scrollbar-slim {
+    scrollbar-width: thin;
+    scrollbar-color: hsl(var(--border)) transparent;
+  }
+}
+
+html {
+  scrollbar-width: thin;
+  scrollbar-color: hsl(var(--border)) transparent;
+  padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

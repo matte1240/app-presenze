@@ -25,7 +25,10 @@ export function issuesOf(error: { issues: ReadonlyArray<{ path: PropertyKey[]; m
   }));
 }
 
-export function validate<T extends ZodType>(target: Target, schema: T) {
+// Generic over the literal target: widening it to the union would make Hono
+// believe every validator applies to every part of the request, which breaks
+// the types the RPC client is derived from.
+export function validate<T extends ZodType, Tg extends Target>(target: Tg, schema: T) {
   return zValidator(target, schema, (result) => {
     if (!result.success) {
       const issues = issuesOf(result.error);

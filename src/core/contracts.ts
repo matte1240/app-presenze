@@ -8,8 +8,20 @@ import { isLocalDate } from "./date";
 import { isClock } from "./time";
 import { DAY_KINDS } from "./timesheet";
 
-export const localDateSchema = z.string().refine(isLocalDate, "Data non valida (attesa YYYY-MM-DD)");
-export const clockSchema = z.string().refine(isClock, "Orario non valido (atteso HH:MM)");
+/*
+  The `: boolean` annotations are load-bearing. Passing a type guard here —
+  or letting TypeScript infer one, which it does for a bare arrow since 5.5 —
+  narrows these schemas to the *branded* domain types, and the brand then
+  propagates out through every form value and payload. On the wire a date is a
+  validated string; `toLocalDate` re-establishes the brand at the boundary,
+  where the domain actually needs it.
+*/
+export const localDateSchema = z
+  .string()
+  .refine((value): boolean => isLocalDate(value), "Data non valida (attesa YYYY-MM-DD)");
+export const clockSchema = z
+  .string()
+  .refine((value): boolean => isClock(value), "Orario non valido (atteso HH:MM)");
 export const yearMonthSchema = z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/, "Mese non valido");
 
 export const spanSchema = z
