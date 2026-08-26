@@ -11,3 +11,5 @@ logs/
 .DS_Store
 src/web/routeTree.gen.ts
 dev-dist/
+test-results/
+playwright-report/

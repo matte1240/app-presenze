@@ -65,6 +65,8 @@ export const t = {
     title: "Back-office",
     loginHint: "Area riservata alla gestione delle organizzazioni clienti.",
     organizations: "Organizzazioni",
+    organizationsHint: "Tutte le aziende clienti su questa installazione.",
+    all: "Elenco",
     organization: "Organizzazione",
     newOrganization: "Nuova organizzazione",
     newOrganizationHint:
@@ -124,14 +126,6 @@ export const t = {
     checkoutCancelled: "Pagamento annullato: non è stato addebitato nulla.",
     cancelling: (date: string) => `L'abbonamento resta attivo fino al ${date} e poi non si rinnova.`,
     notConfigured: "I pagamenti non sono configurati su questa installazione.",
-  },
-
-  setup: {
-    title: "Configurazione iniziale",
-    subtitle: "Crea il primo account amministratore.",
-    name: "Nome e cognome",
-    submit: "Crea amministratore",
-    done: "Amministratore creato.",
   },
 
   nav: {

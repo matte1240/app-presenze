@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, redirect } from "@tanstack/react-router";
-import { Download, LogIn, Plus, ShieldCheck } from "lucide-react";
+import { Download, LogIn, Plus } from "lucide-react";
 import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { ApiError } from "../../api/client";
@@ -11,7 +11,6 @@ import {
   platformOrganizationsQuery,
   useCreateOrganization,
   useImpersonate,
-  usePlatformLogout,
   useUpdateOrganization,
   type OrgStatus,
   type PlanId,
@@ -42,7 +41,6 @@ export const Route = createFileRoute("/piattaforma/organizzazioni")({
   beforeLoad: async ({ context }) => {
     const me = await context.queryClient.ensureQueryData(platformMeQuery);
     if (!me) throw redirect({ to: "/piattaforma" });
-    return { admin: me.admin };
   },
   component: OrganizationsPage,
 });
@@ -60,8 +58,6 @@ const dateIt = (iso: string | null) =>
   iso ? new Date(iso).toLocaleDateString("it-IT", { day: "2-digit", month: "2-digit", year: "numeric" }) : "—";
 
 function OrganizationsPage() {
-  const { admin } = Route.useRouteContext();
-  const logout = usePlatformLogout();
   const { data, isLoading } = useQuery(platformOrganizationsQuery);
   const [createOpen, setCreateOpen] = useState(false);
 
@@ -69,25 +65,17 @@ function OrganizationsPage() {
     <div className="mx-auto w-full max-w-[88rem] space-y-4 p-4 sm:px-6 sm:py-5">
       <header className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="flex items-center gap-2 text-display font-semibold tracking-[-0.02em]">
-            <ShieldCheck className="size-5 text-primary" aria-hidden />
-            {t.platform.title}
-          </h1>
-          <p className="mt-0.5 text-label text-muted-foreground">{admin.email}</p>
+          <h1 className="text-display font-semibold tracking-[-0.02em]">{t.platform.organizations}</h1>
+          <p className="mt-0.5 text-label text-muted-foreground">{t.platform.organizationsHint}</p>
         </div>
-        <div className="flex gap-2">
-          <Button onClick={() => setCreateOpen(true)}>
-            <Plus aria-hidden />
-            {t.platform.newOrganization}
-          </Button>
-          <Button variant="ghost" onClick={() => logout.mutate()}>
-            {t.auth.signOut}
-          </Button>
-        </div>
+        <Button onClick={() => setCreateOpen(true)}>
+          <Plus aria-hidden />
+          {t.platform.newOrganization}
+        </Button>
       </header>
 
       <Card>
-        <CardHeader title={t.platform.organizations} />
+        <CardHeader title={t.platform.all} />
         {isLoading || !data ? (
           <div className="p-5">
             <SkeletonRows rows={4} />

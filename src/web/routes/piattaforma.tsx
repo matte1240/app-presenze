@@ -1,74 +1,55 @@
 import { useQuery } from "@tanstack/react-query";
-import { createFileRoute, redirect } from "@tanstack/react-router";
+import { createFileRoute, Link, Outlet } from "@tanstack/react-router";
 import { ShieldCheck } from "lucide-react";
-import { useForm } from "react-hook-form";
-import { ApiError } from "../api/client";
-import { platformMeQuery, usePlatformLogin } from "../api/platform";
+import { platformMeQuery, usePlatformLogout } from "../api/platform";
 import { t } from "../i18n/it";
-import { Alert, Button, Field, Input } from "../ui/primitives";
+import { Button } from "../ui/primitives";
 
-export const Route = createFileRoute("/piattaforma")({
-  beforeLoad: async ({ context }) => {
-    const me = await context.queryClient.ensureQueryData(platformMeQuery);
-    if (me) throw redirect({ to: "/piattaforma/organizzazioni" });
-  },
-  component: PlatformLogin,
-});
+/**
+ * The back-office layout.
+ *
+ * It exists because of a defect worth remembering. `piattaforma/organizzazioni`
+ * is a child route of this file whether this file wants children or not, and
+ * while this file *was* the sign-in page — with no `<Outlet/>` — signing in led
+ * straight back to the sign-in page. The whole section was unreachable in a
+ * browser while every API test passed, because no API test navigates. The smoke
+ * suite in `e2e/` is the other half of that lesson.
+ *
+ * The chrome appears only once there is a session, so the sign-in page beneath
+ * it stays bare.
+ */
+export const Route = createFileRoute("/piattaforma")({ component: BackOfficeLayout });
 
-function PlatformLogin() {
-  const login = usePlatformLogin();
-  const { refetch } = useQuery(platformMeQuery);
-  const form = useForm<{ email: string; password: string }>({
-    defaultValues: { email: "", password: "" },
-  });
+function BackOfficeLayout() {
+  const { data } = useQuery(platformMeQuery);
+  const logout = usePlatformLogout();
 
-  const onSubmit = form.handleSubmit(async (values) => {
-    try {
-      await login.mutateAsync(values);
-      await refetch();
-      window.location.assign("/piattaforma/organizzazioni");
-    } catch (error) {
-      form.setError("root", {
-        message: error instanceof ApiError ? error.message : t.app.genericError,
-      });
-    }
-  });
+  if (!data) {
+    return (
+      <div className="min-h-dvh bg-background">
+        <Outlet />
+      </div>
+    );
+  }
 
   return (
-    <main className="flex min-h-dvh items-center justify-center bg-background px-5 py-10">
-      <div className="w-full max-w-[22rem]">
-        <div className="mb-7 flex flex-col items-center gap-2 text-center">
-          <ShieldCheck className="size-7 text-primary" aria-hidden />
-          <h1 className="text-display font-semibold tracking-[-0.02em]">{t.platform.title}</h1>
-          <p className="text-body text-muted-foreground">{t.platform.loginHint}</p>
-        </div>
+    <div className="min-h-dvh bg-background">
+      <header className="sticky top-0 z-30 flex h-12 items-center gap-3 border-b border-border bg-background/85 px-4 backdrop-blur">
+        <Link
+          to="/piattaforma/organizzazioni"
+          className="flex flex-1 items-center gap-2 text-label font-semibold tracking-[-0.01em]"
+        >
+          <ShieldCheck className="size-4 text-primary" aria-hidden />
+          {t.platform.title}
+        </Link>
 
-        <form onSubmit={onSubmit} className="space-y-4" noValidate>
-          <Field label={t.auth.email}>
-            {(props) => (
-              <Input type="email" autoFocus autoComplete="username" {...props} {...form.register("email")} />
-            )}
-          </Field>
-          <Field label={t.auth.password}>
-            {(props) => (
-              <Input
-                type="password"
-                autoComplete="current-password"
-                {...props}
-                {...form.register("password")}
-              />
-            )}
-          </Field>
+        <span className="hidden text-label text-muted-foreground sm:inline">{data.admin.email}</span>
+        <Button variant="ghost" size="sm" onClick={() => logout.mutate()}>
+          {t.auth.signOut}
+        </Button>
+      </header>
 
-          {form.formState.errors.root ? (
-            <Alert tone="danger">{form.formState.errors.root.message}</Alert>
-          ) : null}
-
-          <Button type="submit" size="lg" className="w-full" loading={form.formState.isSubmitting}>
-            {t.auth.signIn}
-          </Button>
-        </form>
-      </div>
-    </main>
+      <Outlet />
+    </div>
   );
 }

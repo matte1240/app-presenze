@@ -63,8 +63,18 @@ jobs:
             ALTER DEFAULT PRIVILEGES FOR ROLE presenze_owner IN SCHEMA public
               GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO presenze_app;
           SQL
+          # A second database for the browser smoke suite, so it never races the
+          # API tests over the same rows.
+          createdb -h localhost -U presenze_owner presenze_e2e
+          psql "$E2E_URL" -v ON_ERROR_STOP=1 <<'SQL'
+            GRANT USAGE ON SCHEMA public TO presenze_app;
+            ALTER DEFAULT PRIVILEGES FOR ROLE presenze_owner IN SCHEMA public
+              GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO presenze_app;
+          SQL
         env:
+          PGPASSWORD: owner
           ADMIN_URL: postgres://presenze_owner:owner@localhost:5432/presenze_test
+          E2E_URL: postgres://presenze_owner:owner@localhost:5432/presenze_e2e
 
       - name: Test — isolation, billing and back-office
         run: npm run test:db
@@ -74,6 +84,27 @@ jobs:
 
       - name: Build
         run: npm run build
+
+      # The one thing no API test can check is whether a page is reachable at
+      # all. The back-office once shipped unreachable — a layout route with no
+      # <Outlet/> — with every other check green.
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Smoke test in a browser
+        run: npm run test:e2e
+        env:
+          E2E_DATABASE_URL: postgres://presenze_app:app@localhost:5432/presenze_e2e
+          E2E_DATABASE_ADMIN_URL: postgres://presenze_owner:owner@localhost:5432/presenze_e2e
+
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-report
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 7
 
   image:
     needs: check
