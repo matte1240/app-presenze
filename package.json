@@ -15,6 +15,7 @@
     "build:server": "node scripts/build-server.mjs",
     "start": "node dist/server/index.js",
     "test": "vitest run",
+    "test:db": "vitest run src/server/tenant-isolation.test.ts src/server/billing.test.ts",
     "test:isolation": "vitest run src/server/tenant-isolation.test.ts",
     "test:watch": "vitest",
     "generate:routes": "node scripts/generate-routes.mjs",
@@ -32,6 +33,7 @@
     "node-cron": "^4.2.1",
     "nodemailer": "^9.0.5",
     "postgres": "^3.4.9",
+    "stripe": "^19.3.0",
     "zod": "^4.4.3"
   },
   "devDependencies": {

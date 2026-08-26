@@ -13,7 +13,14 @@ import {
 } from "@core/policy";
 import { toClock, type Span } from "@core/time";
 import { computeDay, type DayInput, type DayKind } from "@core/timesheet";
-import { isAdmin, requireAdmin, requireUser, resolveTargetUser, sessionOf } from "../auth/guards";
+import {
+  isAdmin,
+  requireActiveSubscription,
+  requireAdmin,
+  requireUser,
+  resolveTargetUser,
+  sessionOf,
+} from "../auth/guards";
 import { db } from "../db/client";
 import { currentOrgId } from "../db/context";
 import { currentHolidays } from "../db/current";
@@ -82,6 +89,7 @@ const listQuery = z.object({
 
 export const hoursRoutes = new Hono<AppEnv>()
   .use("*", requireUser)
+  .use("*", requireActiveSubscription)
 
   .get("/", validate("query", listQuery), async (c) => {
     const session = sessionOf(c);

@@ -43,6 +43,17 @@ const schema = z.object({
    */
   DEFAULT_HOLIDAY_PATRON_DAYS: z.string().default(""),
 
+  /**
+   * Stripe. Absent in development: the billing routes then answer "not
+   * configured" instead of the application refusing to start, so nobody needs
+   * an account to work on the timesheet.
+   */
+  STRIPE_SECRET_KEY: z.string().optional(),
+  STRIPE_WEBHOOK_SECRET: z.string().optional(),
+  STRIPE_PRICE_STARTER: z.string().optional(),
+  STRIPE_PRICE_PRO: z.string().optional(),
+  STRIPE_PRICE_BUSINESS: z.string().optional(),
+
   SMTP_HOST: z.string().optional(),
   SMTP_PORT: z.coerce.number().int().positive().default(587),
   SMTP_SECURE: z.stringbool().default(false),
@@ -70,3 +81,12 @@ export function holidayConfigOf(patronDays: string) {
 }
 
 export const mailEnabled = Boolean(env.SMTP_HOST && env.MAIL_FROM);
+
+export const stripeEnabled = Boolean(env.STRIPE_SECRET_KEY && env.STRIPE_WEBHOOK_SECRET);
+
+/** The Stripe price for each plan, as configured. Missing ones cannot be sold. */
+export const stripePrices = {
+  STARTER: env.STRIPE_PRICE_STARTER,
+  PRO: env.STRIPE_PRICE_PRO,
+  BUSINESS: env.STRIPE_PRICE_BUSINESS,
+} as const;

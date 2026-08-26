@@ -14,6 +14,7 @@
 import { and, eq } from "drizzle-orm";
 import { getCookie } from "hono/cookie";
 import { createMiddleware } from "hono/factory";
+import { accessLevel } from "@core/plans";
 import { db } from "../db/client";
 import { currentOrg } from "../db/context";
 import type { OrganizationRow } from "../db/platform-schema";
@@ -73,6 +74,42 @@ export const requireAdmin = createMiddleware<AppEnv>(async (c, next) => {
   const session = c.get("session");
   if (!session) throw unauthenticated();
   if (session.user.role !== "ADMIN") throw forbidden();
+  await next();
+});
+
+/** Reads only; a subscription problem never stops someone consulting their data. */
+const READ_ONLY_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
+
+/**
+ * What an unpaid or lapsed subscription actually costs a company: they may read
+ * and export everything they have, and record nothing new.
+ *
+ * Read-only, never destructive, and never a lock-out. Holding a company's
+ * timesheets hostage would be both wrong and useless — the leverage is that the
+ * application stops being usable for today's work, which is felt immediately,
+ * whereas deleting last year's data would only be felt once and never forgiven.
+ *
+ * Deliberately absent from `auth`, `billing` and `reports`: paying, and taking
+ * your data with you, must both keep working.
+ */
+export const requireActiveSubscription = createMiddleware<AppEnv>(async (c, next) => {
+  const session = c.get("session");
+  if (!session) throw unauthenticated();
+  if (READ_ONLY_METHODS.has(c.req.method)) return next();
+
+  const { organization } = session;
+  const level = accessLevel({
+    status: organization.status,
+    trialEndsAt: organization.trialEndsAt,
+    pastDueSince: organization.pastDueSince,
+    now: new Date(),
+  });
+
+  if (level === "read-only") {
+    throw forbidden(
+      "L'abbonamento non è attivo: puoi consultare ed esportare i dati, ma non modificarli.",
+    );
+  }
   await next();
 });
 

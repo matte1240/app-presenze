@@ -115,8 +115,9 @@ suite("isolamento fra organizzazioni", () => {
 
   beforeAll(async () => {
     const client = await import("./db/client");
-    const { migrate } = await import("drizzle-orm/postgres-js/migrator");
-    await migrate(client.platformDb, { migrationsFolder: "src/server/db/migrations" });
+    // Both database-backed suites migrate the same schema; the advisory lock
+    // inside is what lets them run in parallel without racing each other.
+    await (await import("./db/migrate")).migrateDatabase("src/server/db/migrations");
 
     app = (await import("./app")).app;
     close = client.closeDatabase;

@@ -8,7 +8,6 @@
  * only one. Production never runs this.
  */
 import { randomUUID } from "node:crypto";
-import { migrate } from "drizzle-orm/postgres-js/migrator";
 import { addDays, todayIn, type LocalDate } from "@core/date";
 import { isHoliday } from "@core/holidays";
 import { isWorkingDate } from "@core/schedule";
@@ -21,6 +20,7 @@ import { createDefaultSchedules, weekScheduleOf } from "../services/schedules";
 import { hourColumns } from "../services/timesheet";
 import { closeDatabase, db, platformDb } from "./client";
 import { currentOrg } from "./context";
+import { migrateDatabase } from "./migrate";
 import { organizations } from "./platform-schema";
 import { timeEntries, users } from "./schema";
 import { runInTenant } from "./tenant";
@@ -96,7 +96,7 @@ async function fillTimesheet(userId: string): Promise<number> {
 
 async function seed() {
   // Standalone entry point: the schema may not exist yet.
-  await migrate(platformDb, { migrationsFolder: "src/server/db/migrations" });
+  await migrateDatabase("src/server/db/migrations");
 
   const existing = await platformDb.select().from(organizations).limit(1);
   if (existing.length > 0) {

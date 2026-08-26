@@ -89,6 +89,15 @@ export const t = {
     pastDueBanner: "L'ultimo pagamento non è andato a buon fine. Aggiorna il metodo di pagamento.",
     manage: "Gestisci l'abbonamento",
     choosePlan: "Scegli un piano",
+    currentPlan: "Piano attuale",
+    switchTo: (plan: string) => `Passa a ${plan}`,
+    upToPeople: (n: number) => `Fino a ${n} persone`,
+    unlimitedPeople: "Persone illimitate",
+    tooSmall: "Hai troppe persone per questo piano",
+    checkoutDone: "Pagamento ricevuto. L'abbonamento si attiva entro pochi istanti.",
+    checkoutCancelled: "Pagamento annullato: non è stato addebitato nulla.",
+    cancelling: (date: string) => `L'abbonamento resta attivo fino al ${date} e poi non si rinnova.`,
+    notConfigured: "I pagamenti non sono configurati su questa installazione.",
   },
 
   setup: {

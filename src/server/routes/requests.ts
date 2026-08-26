@@ -6,7 +6,13 @@ import { eachDay, toLocalDate, type LocalDate } from "@core/date";
 import { leaveRequestSchema, leaveReviewSchema, leaveStatusSchema } from "@core/contracts";
 import { daysToMaterialize } from "@core/policy";
 import { computeDay, type DayInput } from "@core/timesheet";
-import { isAdmin, requireAdmin, requireUser, sessionOf } from "../auth/guards";
+import {
+  isAdmin,
+  requireActiveSubscription,
+  requireAdmin,
+  requireUser,
+  sessionOf,
+} from "../auth/guards";
 import { db } from "../db/client";
 import { currentOrgId } from "../db/context";
 import { currentHolidays } from "../db/current";
@@ -115,6 +121,7 @@ const listQuery = z.object({
 
 export const requestRoutes = new Hono<AppEnv>()
   .use("*", requireUser)
+  .use("*", requireActiveSubscription)
 
   .get("/", validate("query", listQuery), async (c) => {
     const session = sessionOf(c);

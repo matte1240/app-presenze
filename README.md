@@ -66,11 +66,29 @@ contro un PostgreSQL vero e va eseguito prima di ogni rilascio:
 ```bash
 TEST_DATABASE_URL=postgres://presenze_app:...@localhost:5432/presenze_test \
 TEST_DATABASE_ADMIN_URL=postgres://presenze:...@localhost:5432/presenze_test \
-npm run test:isolation
+npm run test:db
 ```
 
-Senza quelle variabili il test si salta invece di fallire, così `npm test`
+Senza quelle variabili i test si saltano invece di fallire, così `npm test`
 funziona anche su una macchina senza database.
+
+## Abbonamenti
+
+I piani stanno nel codice (`src/core/plans.ts`), non in una tabella: un prezzo e
+un limite di persone sono promesse commerciali, e cambiarle deve passare da una
+revisione, non da una riga modificata di notte. Stripe possiede il denaro —
+carte, fatture, solleciti, portale — e noi possediamo una colonna,
+`organizations.status`, che decide cosa l'applicazione permette. A scriverla
+sono solo i webhook.
+
+Un abbonamento non attivo rende l'organizzazione **in sola lettura**: si
+consulta e si esporta tutto, non si registra nulla di nuovo. Non si cancella
+niente e non si chiude fuori nessuno. Chi smette di pagare deve poter rientrare,
+o portarsi via i propri dati.
+
+Il limite di persone del piano si applica quando si aggiunge un utente, mai
+all'accesso: nessuno deve trovarsi chiuso fuori da un account che aveva già
+perché il piano è cambiato.
 
 ## Come funziona
 
@@ -121,7 +139,7 @@ significa quindi toccare `ui/tokens.css` e `ui/primitives/`, non la logica.
 |---|---|
 | `npm run dev` | API e interfaccia in sviluppo |
 | `npm test` | test del dominio |
-| `npm run test:isolation` | test di isolamento fra organizzazioni (serve un PostgreSQL) |
+| `npm run test:db` | test di isolamento e fatturazione (serve un PostgreSQL) |
 | `npm run typecheck` | TypeScript su tutto il progetto |
 | `npm run lint` | ESLint, incluse le regole di confine fra i layer |
 | `npm run build` | bundle di interfaccia e server in `dist/` |

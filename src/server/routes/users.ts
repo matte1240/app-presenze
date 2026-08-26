@@ -6,7 +6,13 @@ import { adminResetPasswordSchema, createUserSchema, updateUserSchema, weekSched
 import type { DaySchedule } from "@core/schedule";
 import { toClock, type Span } from "@core/time";
 import { seatsAvailable, smallestPlanFor, PLANS } from "@core/plans";
-import { orgOf, requireAdmin, requireUser, sessionOf } from "../auth/guards";
+import {
+  orgOf,
+  requireActiveSubscription,
+  requireAdmin,
+  requireUser,
+  sessionOf,
+} from "../auth/guards";
 import { hashPassword } from "../auth/password";
 import { revokeAllSessions } from "../auth/session";
 import { db } from "../db/client";
@@ -79,6 +85,7 @@ export const meRoutes = new Hono<AppEnv>()
 
 export const userRoutes = new Hono<AppEnv>()
   .use("*", requireAdmin)
+  .use("*", requireActiveSubscription)
 
   .get("/", async (c) => {
     const organizationId = currentOrgId();

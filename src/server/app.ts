@@ -4,10 +4,12 @@ import type { AppEnv } from "./http/app-env";
 import { onError } from "./http/errors";
 import { adminRoutes } from "./routes/admin";
 import { authRoutes } from "./routes/auth";
+import { billingRoutes } from "./routes/billing";
 import { hoursRoutes } from "./routes/hours";
 import { reportRoutes } from "./routes/reports";
 import { requestRoutes } from "./routes/requests";
 import { meRoutes, userRoutes } from "./routes/users";
+import { webhookRoutes } from "./routes/webhooks";
 
 /**
  * Every router sits behind `loadSession` and then declares its own
@@ -15,6 +17,11 @@ import { meRoutes, userRoutes } from "./routes/users";
  * that separation is what let the restore endpoint go unguarded.
  */
 export const api = new Hono<AppEnv>()
+  // Webhooks come first and outside `loadSession`: they carry no cookie, and
+  // their signature is computed over the raw body, so nothing may consume it
+  // before the verification does.
+  .route("/webhooks", webhookRoutes)
+
   .use("*", loadSession)
   .route("/auth", authRoutes)
   .route("/me", meRoutes)
@@ -22,6 +29,7 @@ export const api = new Hono<AppEnv>()
   .route("/hours", hoursRoutes)
   .route("/requests", requestRoutes)
   .route("/reports", reportRoutes)
+  .route("/billing", billingRoutes)
   .route("/admin", adminRoutes)
   .get("/health", (c) => c.json({ status: "ok" }));
 
