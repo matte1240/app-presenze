@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { createFileRoute, redirect } from "@tanstack/react-router";
+import { createFileRoute, Outlet, redirect, useRouterState } from "@tanstack/react-router";
 import { ShieldCheck } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { ApiError } from "../api/client";
@@ -8,12 +8,26 @@ import { t } from "../i18n/it";
 import { Alert, Button, Field, Input } from "../ui/primitives";
 
 export const Route = createFileRoute("/piattaforma")({
-  beforeLoad: async ({ context }) => {
+  beforeLoad: async ({ context, location }) => {
     const me = await context.queryClient.ensureQueryData(platformMeQuery);
-    if (me) throw redirect({ to: "/piattaforma/organizzazioni" });
+    // Only the login page itself redirects onward: this route is also the
+    // parent of `/piattaforma/organizzazioni`, whose beforeLoad runs after
+    // this one on every visit, and redirecting there unconditionally would
+    // send it right back to itself in an infinite loop.
+    if (me && location.pathname === "/piattaforma") throw redirect({ to: "/piattaforma/organizzazioni" });
   },
-  component: PlatformLogin,
+  component: PlatformRoute,
 });
+
+/**
+ * Doubles as the login page and as the layout for its children. Without this
+ * split the login form's own JSX — which has no `<Outlet />` — would be all
+ * that ever rendered, even once signed in and navigated to a child route.
+ */
+function PlatformRoute() {
+  const pathname = useRouterState({ select: (s) => s.location.pathname });
+  return pathname === "/piattaforma" ? <PlatformLogin /> : <Outlet />;
+}
 
 function PlatformLogin() {
   const login = usePlatformLogin();

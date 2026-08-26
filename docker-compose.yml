@@ -8,6 +8,11 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?serve una password per il database}
       POSTGRES_APP_PASSWORD: ${POSTGRES_APP_PASSWORD:?serve una password per il ruolo applicativo}
       TZ: ${TZ:-Europe/Rome}
+    ports:
+      # Pubblicata sull'host solo per lo sviluppo locale (npm run dev si
+      # connette da fuori il compose network); l'app in produzione la
+      # raggiunge già via rete interna, senza bisogno di questa porta.
+      - "127.0.0.1:5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
       # Creates the unprivileged role the application uses. Runs once, when the
