@@ -36,6 +36,20 @@
       "when": 1787775743851,
       "tag": "0004_platform_admins",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1787776390278,
+      "tag": "0005_billing_profiles",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1787776599025,
+      "tag": "0006_drop_invitations",
+      "breakpoints": true
     }
   ]
 }

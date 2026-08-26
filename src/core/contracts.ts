@@ -5,6 +5,14 @@
  */
 import { z } from "zod";
 import { isLocalDate } from "./date";
+import {
+  isFiscalCode,
+  isPecAddress,
+  isSdiCode,
+  isVatNumber,
+  needsDeliveryAddress,
+  needsTaxIdentifier,
+} from "./fiscal";
 import { isClock } from "./time";
 import { DAY_KINDS } from "./timesheet";
 
@@ -126,6 +134,67 @@ export const updateProfileSchema = z
     email: emailSchema,
     currentPassword: z.string().optional(),
   });
+
+/**
+ * Who to invoice.
+ *
+ * The identifiers are checked for real rather than for length — see
+ * `@core/fiscal` — because a transposed digit becomes an invoice the exchange
+ * system rejects weeks later, when nobody remembers typing it.
+ */
+export const billingProfileSchema = z
+  .object({
+    legalName: z.string().trim().min(2, "La ragione sociale è obbligatoria").max(160),
+    addressLine: z.string().trim().min(2, "L'indirizzo è obbligatorio").max(200),
+    postalCode: z.string().trim().min(3, "Il CAP è obbligatorio").max(12),
+    city: z.string().trim().min(2, "La città è obbligatoria").max(100),
+    province: z.string().trim().max(4).nullable(),
+    country: z.string().trim().length(2, "Usa il codice paese a due lettere").toUpperCase(),
+
+    vatNumber: z
+      .string()
+      .trim()
+      .nullable()
+      .refine((v): boolean => v === null || v === "" || isVatNumber(v), "Partita IVA non valida"),
+    taxCode: z
+      .string()
+      .trim()
+      .nullable()
+      .refine((v): boolean => v === null || v === "" || isFiscalCode(v), "Codice fiscale non valido"),
+    sdiCode: z
+      .string()
+      .trim()
+      .nullable()
+      .refine((v): boolean => v === null || v === "" || isSdiCode(v), "Codice destinatario non valido"),
+    pec: z
+      .string()
+      .trim()
+      .nullable()
+      .refine((v): boolean => v === null || v === "" || isPecAddress(v), "PEC non valida"),
+    billingEmail: z.string().trim().nullable(),
+  })
+  .refine((p) => !needsTaxIdentifier(asIdentity(p)), {
+    message: "Serve almeno la partita IVA o il codice fiscale",
+    path: ["vatNumber"],
+  })
+  .refine((p) => !needsDeliveryAddress(asIdentity(p)), {
+    message: "Per un cliente italiano serve il codice destinatario oppure la PEC",
+    path: ["sdiCode"],
+  });
+
+const asIdentity = (p: {
+  country: string;
+  vatNumber: string | null;
+  taxCode: string | null;
+  sdiCode: string | null;
+  pec: string | null;
+}) => ({
+  country: p.country,
+  vatNumber: p.vatNumber || null,
+  taxCode: p.taxCode || null,
+  sdiCode: p.sdiCode || null,
+  pec: p.pec || null,
+});
 
 // ── Timesheet ─────────────────────────────────────────────────────────────
 

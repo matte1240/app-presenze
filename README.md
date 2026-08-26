@@ -72,6 +72,17 @@ npm run test:db
 Senza quelle variabili i test si saltano invece di fallire, così `npm test`
 funziona anche su una macchina senza database.
 
+## Utenti che se ne vanno
+
+Il pulsante non è «Elimina» ma «Disattiva»: l'account smette di funzionare, il
+posto del piano si libera e la persona sparisce dai promemoria, ma il suo
+cartellino resta e continua a comparire nei report. Per un gestionale che
+alimenta le paghe è l'unico comportamento accettabile, e in Italia i registri
+del personale vanno conservati per anni.
+
+L'eliminazione definitiva esiste ancora, ma solo su un utente già disattivato, e
+la conferma dice quante giornate e quante richieste sta per distruggere.
+
 ## Migrare un cliente esistente
 
 L'installazione mono-azienda su SQLite si porta dentro con uno script:
@@ -127,7 +138,19 @@ o portarsi via i propri dati.
 
 Il limite di persone del piano si applica quando si aggiunge un utente, mai
 all'accesso: nessuno deve trovarsi chiuso fuori da un account che aveva già
-perché il piano è cambiato.
+perché il piano è cambiato. Un utente disattivato non occupa un posto.
+
+**Fatturazione italiana.** Nella pagina Abbonamento si compila l'anagrafica:
+ragione sociale, indirizzo, partita IVA, codice fiscale e — quello che serve
+davvero perché la fattura arrivi — il codice destinatario SDI oppure la PEC.
+Partita IVA e codice fiscale sono verificati con il loro carattere di controllo
+(`src/core/fiscal.ts`), non solo per lunghezza: una cifra trasposta diventa
+altrimenti una fattura scartata settimane dopo. Per un cliente italiano
+l'anagrafica non si salva senza SDI o PEC.
+
+I dati vengono sincronizzati su Stripe — indirizzo, partita IVA come `eu_vat`
+con il prefisso del paese, SDI e PEC nei metadata — ma restano nostri anche se
+Stripe non è configurato o non risponde.
 
 ## Come funziona
 

@@ -182,6 +182,69 @@ suite("organizzazione e profilo", () => {
     email = nextEmail;
   });
 
+  it("rifiuta un'anagrafica fiscale che non permetterebbe di fatturare", async () => {
+    const base = {
+      legalName: "Officina Rossi S.r.l.",
+      addressLine: "Via Roma 1",
+      postalCode: "10100",
+      city: "Torino",
+      province: "TO",
+      country: "IT",
+      vatNumber: "00743110157",
+      taxCode: null,
+      sdiCode: "ABC1234",
+      pec: null,
+      billingEmail: null,
+    };
+
+    // A transposed digit: the length is right, the check character is not.
+    const badVat = await as("/api/organization/billing-profile", {
+      method: "PUT",
+      body: JSON.stringify({ ...base, vatNumber: "00743110175" }),
+    });
+    expect(badVat.status).toBe(422);
+
+    // Italian, and nowhere for the exchange system to deliver the invoice.
+    const noDelivery = await as("/api/organization/billing-profile", {
+      method: "PUT",
+      body: JSON.stringify({ ...base, sdiCode: null, pec: null }),
+    });
+    expect(noDelivery.status).toBe(422);
+
+    // Nobody to invoice at all.
+    const noIdentity = await as("/api/organization/billing-profile", {
+      method: "PUT",
+      body: JSON.stringify({ ...base, vatNumber: null, taxCode: null }),
+    });
+    expect(noIdentity.status).toBe(422);
+  });
+
+  it("salva l'anagrafica e la restituisce normalizzata", async () => {
+    const response = await as("/api/organization/billing-profile", {
+      method: "PUT",
+      body: JSON.stringify({
+        legalName: "Officina Rossi S.r.l.",
+        addressLine: "Via Roma 1",
+        postalCode: "10100",
+        city: "Torino",
+        province: "TO",
+        country: "it",
+        vatNumber: "00743110157",
+        taxCode: "rssmra85t10a562s",
+        sdiCode: "abc1234",
+        pec: null,
+        billingEmail: "amministrazione@example.com",
+      }),
+    });
+    expect(response.status).toBe(200);
+
+    const saved = await (await as("/api/organization/billing-profile")).json();
+    expect(saved.profile.country).toBe("IT");
+    // Identifiers are stored the way they are printed.
+    expect(saved.profile.taxCode).toBe("RSSMRA85T10A562S");
+    expect(saved.profile.sdiCode).toBe("ABC1234");
+  });
+
   it("elenca gli accessi attivi e chiude gli altri", async () => {
     // A second sign-in, so there is something to close.
     const second = await app.request("/api/auth/login", {

@@ -7,7 +7,12 @@ import type { AppEnv } from "../http/app-env";
 import { invalid } from "../http/errors";
 import { validate } from "../http/validate";
 import { seatsUsed } from "../services/organizations";
-import { createCheckoutSession, createPortalSession, subscriptionOf } from "../services/stripe";
+import {
+  createCheckoutSession,
+  createPortalSession,
+  invoicesFor,
+  subscriptionOf,
+} from "../services/stripe";
 import { organizationSummary } from "./auth";
 
 const checkoutSchema = z.object({
@@ -41,6 +46,8 @@ export const billingRoutes = new Hono<AppEnv>()
       })),
     });
   })
+
+  .get("/invoices", async (c) => c.json({ invoices: await invoicesFor(orgOf(c).id) }))
 
   .post("/checkout", validate("json", checkoutSchema), async (c) => {
     if (!stripeEnabled) throw invalid("I pagamenti non sono configurati su questa installazione");

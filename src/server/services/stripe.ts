@@ -12,7 +12,12 @@ import { eq } from "drizzle-orm";
 import Stripe from "stripe";
 import { isPlanId, type PlanId } from "@core/plans";
 import { platformDb } from "../db/client";
-import { organizations, subscriptions, type OrganizationRow } from "../db/platform-schema";
+import {
+  organizations,
+  subscriptions,
+  type BillingProfileRow,
+  type OrganizationRow,
+} from "../db/platform-schema";
 import { env, stripeEnabled, stripePrices } from "../env";
 
 let client: Stripe | null = null;
@@ -68,6 +73,101 @@ export async function customerIdFor(organization: OrganizationRow): Promise<stri
   }
 
   return customer.id;
+}
+
+/**
+ * Pushes the invoicing details to Stripe.
+ *
+ * Stripe knows about addresses and tax ids, so those go where it expects them.
+ * It has never heard of the Italian exchange system, so the recipient code and
+ * the certified address ride along as metadata — enough for them to appear
+ * beside the customer in any accounting export, which is where whoever issues
+ * the invoice will look for them.
+ *
+ * Best effort on purpose: the profile is ours to keep, and a Stripe outage must
+ * not stop a customer from correcting their own VAT number.
+ */
+export async function syncBillingProfile(
+  organization: OrganizationRow,
+  profile: BillingProfileRow,
+): Promise<boolean> {
+  if (!stripeEnabled) return false;
+
+  try {
+    const customerId = await customerIdFor(organization);
+
+    await stripe().customers.update(customerId, {
+      name: profile.legalName,
+      email: profile.billingEmail ?? undefined,
+      address: {
+        line1: profile.addressLine,
+        postal_code: profile.postalCode,
+        city: profile.city,
+        state: profile.province ?? undefined,
+        country: profile.country,
+      },
+      metadata: {
+        organizationId: organization.id,
+        sdiCode: profile.sdiCode ?? "",
+        pec: profile.pec ?? "",
+        taxCode: profile.taxCode ?? "",
+      },
+    });
+
+    // Stripe has no `it_vat`: within the EU the type is `eu_vat` and the value
+    // carries the country prefix, which is also how the number appears on the
+    // invoice itself.
+    const wanted = profile.vatNumber ? `${profile.country}${profile.vatNumber}` : null;
+
+    // Tax ids are a collection, not a field, so a change is a remove and an
+    // add. A stale one left behind would print on the next invoice.
+    const existing = await stripe().customers.listTaxIds(customerId, { limit: 10 });
+    for (const taxId of existing.data) {
+      if (taxId.value !== wanted) await stripe().customers.deleteTaxId(customerId, taxId.id);
+    }
+    if (wanted && !existing.data.some((t) => t.value === wanted)) {
+      await stripe().customers.createTaxId(customerId, { type: "eu_vat", value: wanted });
+    }
+
+    return true;
+  } catch (error) {
+    console.error("Sincronizzazione dei dati di fatturazione con Stripe fallita:", error);
+    return false;
+  }
+}
+
+export interface InvoiceSummary {
+  id: string;
+  number: string | null;
+  status: string | null;
+  total: number;
+  currency: string;
+  createdAt: string;
+  hostedUrl: string | null;
+  pdfUrl: string | null;
+}
+
+/** The invoices Stripe has issued, in the shape the billing screen shows. */
+export async function invoicesFor(organizationId: string): Promise<InvoiceSummary[]> {
+  if (!stripeEnabled) return [];
+  const subscription = await subscriptionOf(organizationId);
+  if (!subscription?.stripeCustomerId) return [];
+
+  const invoices = await stripe().invoices.list({
+    customer: subscription.stripeCustomerId,
+    limit: 24,
+  });
+
+  return invoices.data.map((invoice) => ({
+    id: invoice.id ?? "",
+    number: invoice.number,
+    status: invoice.status,
+    total: invoice.total / 100,
+    currency: invoice.currency.toUpperCase(),
+    createdAt: new Date(invoice.created * 1000).toISOString(),
+    hostedUrl: invoice.hosted_invoice_url ?? null,
+    pdfUrl: invoice.invoice_pdf ?? null,
+  }));
 }
 
 export async function createCheckoutSession(

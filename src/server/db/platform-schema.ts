@@ -7,7 +7,7 @@
  * off by row-level security; everything here spans companies by definition and
  * must not be.
  */
-import { boolean, index, jsonb, pgTable, text, timestamp, unique } from "drizzle-orm/pg-core";
+import { boolean, index, jsonb, pgTable, text, timestamp } from "drizzle-orm/pg-core";
 import { ORG_STATUSES, PLAN_IDS } from "@core/plans";
 
 const id = () => text("id").primaryKey();
@@ -67,6 +67,41 @@ export const stripeEvents = pgTable("stripe_events", {
 });
 
 /**
+ * Who to invoice, and where the invoice has to go.
+ *
+ * Its own table rather than more columns on `organizations`: this is accounting
+ * data with its own lifecycle and its own audience, and an organization's
+ * settings are already crowded enough without an address in the middle of them.
+ */
+export const billingProfiles = pgTable("billing_profiles", {
+  id: id(),
+  organizationId: text("organization_id")
+    .notNull()
+    .unique()
+    .references(() => organizations.id, { onDelete: "cascade" }),
+
+  /** The name on the invoice, which is rarely the name people call them by. */
+  legalName: text("legal_name").notNull(),
+  addressLine: text("address_line").notNull(),
+  postalCode: text("postal_code").notNull(),
+  city: text("city").notNull(),
+  province: text("province"),
+  country: text("country").notNull().default("IT"),
+
+  vatNumber: text("vat_number"),
+  taxCode: text("tax_code"),
+  /** Where the exchange system delivers an Italian electronic invoice. */
+  sdiCode: text("sdi_code"),
+  pec: text("pec"),
+  billingEmail: text("billing_email"),
+
+  createdAt: now(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }),
+});
+
+export type BillingProfileRow = typeof billingProfiles.$inferSelect;
+
+/**
  * Deliberately not a role on `users`.
  *
  * If "can administer the platform" were a value in the tenant `role` column,
@@ -123,28 +158,6 @@ export const auditLog = pgTable(
     index("audit_log_org_idx").on(t.organizationId, t.createdAt),
     index("audit_log_created_idx").on(t.createdAt),
   ],
-);
-
-/**
- * Pending invitations, for both ways a company gets an account: a platform
- * administrator setting one up, and a company administrator adding an
- * employee. The token is stored as a digest, like every other token here.
- */
-export const invitations = pgTable(
-  "invitations",
-  {
-    id: id(),
-    organizationId: text("organization_id")
-      .notNull()
-      .references(() => organizations.id, { onDelete: "cascade" }),
-    email: text("email").notNull(),
-    name: text("name").notNull(),
-    role: text("role", { enum: ["ADMIN", "EMPLOYEE"] }).notNull().default("ADMIN"),
-    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
-    acceptedAt: timestamp("accepted_at", { withTimezone: true }),
-    createdAt: now(),
-  },
-  (t) => [unique("invitations_org_email_unique").on(t.organizationId, t.email)],
 );
 
 export type OrganizationRow = typeof organizations.$inferSelect;

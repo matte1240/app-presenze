@@ -4,6 +4,8 @@ import { Check } from "lucide-react";
 import { z } from "zod";
 import { billingQuery, useCheckout, usePortal, type BillingState } from "../../api/billing";
 import { ApiError } from "../../api/client";
+import { FiscalCard } from "../../features/billing/fiscal-card";
+import { InvoiceList } from "../../features/billing/invoice-list";
 import { t } from "../../i18n/it";
 import { cn } from "../../ui/cn";
 import { Alert, Badge, Button, Card, CardHeader, SkeletonRows, useToast } from "../../ui/primitives";
@@ -48,7 +50,12 @@ function BillingPage() {
       ) : (
         <>
           <CurrentPlan data={data} />
+          {/* The plan, the seats and the invoicing details are real whether or
+              not online payment is switched on; only the plan picker and the
+              invoice list depend on Stripe. */}
           {data.stripeEnabled ? <PlanGrid data={data} /> : <Alert tone="info">{t.billing.notConfigured}</Alert>}
+          <FiscalCard />
+          {data.stripeEnabled ? <InvoiceList /> : null}
         </>
       )}
     </div>
