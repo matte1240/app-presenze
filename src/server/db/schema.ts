@@ -9,8 +9,20 @@ import {
   timestamp,
   unique,
 } from "drizzle-orm/pg-core";
+import { organizations } from "./platform-schema";
 
 const id = () => text("id").primaryKey();
+
+/**
+ * Every table here carries it, including the ones already reachable through
+ * `users`. The redundancy is the point: a row-level security policy can only
+ * test a column the row actually has, and a query can filter without a join it
+ * might forget to add.
+ */
+const org = () =>
+  text("organization_id")
+    .notNull()
+    .references(() => organizations.id, { onDelete: "cascade" });
 const now = () => timestamp("created_at", { withTimezone: true }).notNull().defaultNow();
 const bool = (name: string) => boolean(name).notNull().default(false);
 
@@ -18,8 +30,9 @@ export const users = pgTable(
   "users",
   {
     id: id(),
+    organizationId: org(),
     name: text("name").notNull(),
-    email: text("email").notNull().unique(),
+    email: text("email").notNull(),
     passwordHash: text("password_hash").notNull(),
     role: text("role", { enum: ["ADMIN", "EMPLOYEE"] }).notNull().default("EMPLOYEE"),
     canWorkSunday: bool("can_work_sunday"),
@@ -28,6 +41,9 @@ export const users = pgTable(
     createdAt: now(),
     updatedAt: timestamp("updated_at", { withTimezone: true }),
   },
+  // The address was globally unique when the deployment was the company. It
+  // cannot be now: the same accountant may keep the books for two of them.
+  (t) => [unique("users_org_email_unique").on(t.organizationId, t.email)],
 );
 
 /**
@@ -45,6 +61,7 @@ export const sessions = pgTable(
   "sessions",
   {
     id: id(),
+    organizationId: org(),
     userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
     expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
     lastSeenAt: timestamp("last_seen_at", { withTimezone: true }).notNull(),
@@ -58,6 +75,7 @@ export const passwordResets = pgTable(
   "password_resets",
   {
     id: id(),
+    organizationId: org(),
     userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
     expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
     usedAt: timestamp("used_at", { withTimezone: true }),
@@ -69,6 +87,7 @@ export const passwordResets = pgTable(
 export const workSchedules = pgTable(
   "work_schedules",
   {
+    organizationId: org(),
     userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
     weekday: integer("weekday").notNull(),
     isWorking: boolean("is_working").notNull().default(true),
@@ -94,6 +113,7 @@ export const timeEntries = pgTable(
   "time_entries",
   {
     id: id(),
+    organizationId: org(),
     userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
     /** Civil date as `YYYY-MM-DD`; never a timestamp. */
     workDate: text("work_date").notNull(),
@@ -125,7 +145,7 @@ export const timeEntries = pgTable(
     updatedAt: timestamp("updated_at", { withTimezone: true }),
   },
   (t) => [
-    index("time_entries_date_idx").on(t.workDate),
+    index("time_entries_org_date_idx").on(t.organizationId, t.workDate),
     // Uniqueness used to be an application-code promise kept by `entryOn()`
     // alone. On a database that will hold every customer, a promise is not
     // enough: two concurrent writes could each insert a row for the same day.
@@ -139,6 +159,7 @@ export const leaveRequests = pgTable(
   "leave_requests",
   {
     id: id(),
+    organizationId: org(),
     userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
     type: text("type", { enum: ["VACATION", "SICKNESS", "PERMESSO"] }).notNull(),
     status: text("status", { enum: ["PENDING", "APPROVED", "REJECTED"] })
@@ -156,7 +177,7 @@ export const leaveRequests = pgTable(
   },
   (t) => [
     index("leave_requests_user_status_idx").on(t.userId, t.status),
-    index("leave_requests_status_idx").on(t.status, t.createdAt),
+    index("leave_requests_org_status_idx").on(t.organizationId, t.status, t.createdAt),
     index("leave_requests_dates_idx").on(t.userId, t.startDate, t.endDate),
   ],
 );
@@ -166,3 +187,4 @@ export type TimeEntryRow = typeof timeEntries.$inferSelect;
 export type WorkScheduleRow = typeof workSchedules.$inferSelect;
 export type LeaveRequestRow = typeof leaveRequests.$inferSelect;
 export type SessionRow = typeof sessions.$inferSelect;
+export type PasswordResetRow = typeof passwordResets.$inferSelect;

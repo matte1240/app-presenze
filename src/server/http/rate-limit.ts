@@ -1,10 +1,12 @@
 /**
  * A fixed-window limiter held in memory.
  *
- * Deliberately not a shared store: this product runs as a single process
- * against an embedded SQLite file, so a per-process counter is exactly as
- * strong as the deployment it protects. If it ever runs behind more than one
- * instance, this needs replacing rather than tuning.
+ * Deliberately not a shared store: the deployment is a single process, so a
+ * per-process counter is exactly as strong as what it protects. That is now
+ * the only thing keeping the application from running as several replicas —
+ * the database is shared and the scheduled jobs take an advisory lock, but
+ * these buckets are not. Behind more than one instance this needs replacing
+ * with a Postgres table keyed the same way, not tuning.
  */
 import { createMiddleware } from "hono/factory";
 import { ApiError } from "./errors";

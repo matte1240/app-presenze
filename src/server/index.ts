@@ -5,7 +5,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { app } from "./app";
-import { db } from "./db/client";
+import { platformDb } from "./db/client";
 import { env } from "./env";
 import { startScheduledJobs } from "./services/jobs";
 
@@ -16,7 +16,10 @@ const migrationsFolder = existsSync(join(here, "migrations"))
   ? join(here, "migrations")
   : resolve("src/server/db/migrations");
 
-await migrate(db, { migrationsFolder });
+// Migrations run as the owner, not as the application: the role the app
+// signs in with deliberately cannot create or alter a table, which is the
+// same reason the isolation policies apply to it.
+await migrate(platformDb, { migrationsFolder });
 
 // The SPA is a static bundle; anything that is not a file on disk and not an
 // API call is a client-side route and gets the shell.

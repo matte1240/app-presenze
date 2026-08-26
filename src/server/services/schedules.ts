@@ -2,7 +2,7 @@
  * Reading and writing weekly schedules, and turning stored rows into the
  * `WeekSchedule` shape the domain understands.
  */
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import type { Weekday } from "@core/date";
 import {
   ALL_WEEKDAYS,
@@ -13,7 +13,10 @@ import {
 } from "@core/schedule";
 import { toClock, type Span } from "@core/time";
 import { db } from "../db/client";
+import { currentOrgId } from "../db/context";
 import { workSchedules, type WorkScheduleRow } from "../db/schema";
+
+const mine = () => eq(workSchedules.organizationId, currentOrgId());
 
 function spanOf(start: string | null, end: string | null): Span | null {
   return start && end ? { start: toClock(start), end: toClock(end) } : null;
@@ -35,19 +38,26 @@ export function toDaySchedule(row: WorkScheduleRow): DaySchedule {
  * created a minute ago still has sensible contractual hours.
  */
 export async function weekScheduleOf(userId: string): Promise<WeekSchedule> {
-  const rows = await db.select().from(workSchedules).where(eq(workSchedules.userId, userId));
+  const rows = await db
+    .select()
+    .from(workSchedules)
+    .where(and(mine(), eq(workSchedules.userId, userId)));
   const byDay = new Map(rows.map((r) => [r.weekday, toDaySchedule(r)]));
   return weekFrom(ALL_WEEKDAYS.map((d) => byDay.get(d) ?? defaultDay(d)));
 }
 
 export async function scheduleRowsOf(userId: string): Promise<DaySchedule[]> {
-  const rows = await db.select().from(workSchedules).where(eq(workSchedules.userId, userId));
+  const rows = await db
+    .select()
+    .from(workSchedules)
+    .where(and(mine(), eq(workSchedules.userId, userId)));
   const byDay = new Map(rows.map((r) => [r.weekday, toDaySchedule(r)]));
   return ALL_WEEKDAYS.map((d) => byDay.get(d) ?? defaultDay(d));
 }
 
 export function rowFor(userId: string, day: DaySchedule) {
   return {
+    organizationId: currentOrgId(),
     userId,
     weekday: day.weekday,
     isWorking: day.isWorking,

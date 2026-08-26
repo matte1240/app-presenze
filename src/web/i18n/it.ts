@@ -50,6 +50,45 @@ export const t = {
     welcome: "Bentornato",
     welcomeHint: "Accedi al tuo account per continuare.",
     signInHint: "Inserisci le tue credenziali per continuare.",
+
+    chooseOrganization: "Il tuo account esiste in più organizzazioni. Con quale vuoi entrare?",
+    createOrganization: "Crea un'organizzazione",
+    signupTitle: "Crea la tua organizzazione",
+    signupHint: "Bastano un minuto e nessuna carta di credito.",
+    signupAction: "Inizia la prova gratuita",
+    organizationName: "Nome dell'organizzazione",
+    yourName: "Il tuo nome",
+    alreadyRegistered: "Hai già un account?",
+  },
+
+  billing: {
+    title: "Abbonamento",
+    subtitle: "Piano, utenti e fatturazione.",
+    plan: "Piano",
+    status: "Stato",
+    seats: "Persone",
+    seatsOf: (used: number, limit: number | null) =>
+      limit === null ? `${used} (illimitate)` : `${used} di ${limit}`,
+    renewsOn: "Prossimo rinnovo",
+    trialEndsOn: "La prova finisce il",
+    statuses: {
+      TRIAL: "In prova",
+      ACTIVE: "Attivo",
+      PAST_DUE: "Pagamento non riuscito",
+      SUSPENDED: "Sospeso",
+      CANCELLED: "Disdetto",
+    } as const,
+    trialBanner: (days: number) =>
+      days === 0
+        ? "La prova gratuita finisce oggi."
+        : days === 1
+          ? "Ti resta un giorno di prova gratuita."
+          : `Ti restano ${days} giorni di prova gratuita.`,
+    readOnlyBanner:
+      "L'abbonamento non è attivo: puoi consultare ed esportare i dati, ma non registrarne di nuovi.",
+    pastDueBanner: "L'ultimo pagamento non è andato a buon fine. Aggiorna il metodo di pagamento.",
+    manage: "Gestisci l'abbonamento",
+    choosePlan: "Scegli un piano",
   },
 
   setup: {
@@ -65,6 +104,7 @@ export const t = {
     requests: "Richieste",
     reports: "Report",
     users: "Utenti",
+    billing: "Abbonamento",
     maintenance: "Manutenzione",
     profile: "Profilo",
     overview: "Riepilogo",

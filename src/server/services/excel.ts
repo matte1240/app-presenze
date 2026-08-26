@@ -10,8 +10,8 @@ import ExcelJS from "exceljs";
 import { eachDay, formatDateIt, monthRange, toYearMonth, weekdayOf } from "@core/date";
 import { holidayName } from "@core/holidays";
 import { roundHours } from "@core/time";
+import { currentHolidays } from "../db/current";
 import type { TimeEntryRow } from "../db/schema";
-import { holidayConfig } from "../env";
 
 const WEEKDAY_LABELS = ["dom", "lun", "mar", "mer", "gio", "ven", "sab"] as const;
 
@@ -55,6 +55,10 @@ export async function buildMonthlyWorkbook(args: {
   const workbook = new ExcelJS.Workbook();
   workbook.creator = args.appName;
   workbook.created = new Date();
+
+  // Public holidays belong to the company, not to the deployment: a local
+  // patron saint's day is a working day everywhere else.
+  const holidays = currentHolidays();
 
   const { from, to } = monthRange(toYearMonth(args.month));
 
@@ -109,7 +113,7 @@ export async function buildMonthlyWorkbook(args: {
     // in the timesheet is exactly what a payroll reviewer needs to see.
     for (const date of eachDay(from, to)) {
       const entry = byDate.get(date);
-      const holiday = holidayName(date, holidayConfig);
+      const holiday = holidayName(date, holidays);
 
       const row = sheet.addRow({
         date: formatDateIt(date),

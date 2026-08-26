@@ -15,13 +15,33 @@ const schema = z.object({
   TZ: z.string().default("Europe/Rome"),
 
   DATABASE_URL: z.string().min(1, "DATABASE_URL è obbligatoria"),
+  /**
+   * The table owner, which Postgres exempts from row-level security. Only the
+   * sign-in lookup, the back-office and the scheduled jobs use it. Required in
+   * production: without it the application runs as the owner and the isolation
+   * policies never apply.
+   */
+  DATABASE_ADMIN_URL: z.string().optional(),
   DATABASE_POOL_MAX: z.coerce.number().int().min(1).default(10),
 
   APP_NAME: z.string().default("Presenze"),
-  COMPANY_NAME: z.string().default(""),
 
-  /** Comma-separated `MM-DD` local patron saint days. */
-  HOLIDAY_PATRON_DAYS: z.string().default(""),
+  /** Whether anyone may create an organization, or only the back-office. */
+  SIGNUP_ENABLED: z.stringbool().default(true),
+  TRIAL_DAYS: z.coerce.number().int().min(0).default(14),
+
+  /**
+   * Creates the first platform administrator at boot, and only while there is
+   * none. Both are needed; either alone is ignored.
+   */
+  PLATFORM_ADMIN_EMAIL: z.string().optional(),
+  PLATFORM_ADMIN_PASSWORD: z.string().optional(),
+
+  /**
+   * Defaults for a newly created organization; each one keeps its own copy
+   * from then on. Comma-separated `MM-DD` local patron saint days.
+   */
+  DEFAULT_HOLIDAY_PATRON_DAYS: z.string().default(""),
 
   SMTP_HOST: z.string().optional(),
   SMTP_PORT: z.coerce.number().int().positive().default(587),
@@ -44,8 +64,9 @@ export const env = parsed.data;
 
 export const isProduction = env.NODE_ENV === "production";
 
-export const holidayConfig = {
-  patronDays: env.HOLIDAY_PATRON_DAYS.split(",").map((s) => s.trim()).filter(Boolean),
-} as const;
+/** Turns an organization's stored `MM-DD` list into what the domain expects. */
+export function holidayConfigOf(patronDays: string) {
+  return { patronDays: patronDays.split(",").map((s) => s.trim()).filter(Boolean) } as const;
+}
 
 export const mailEnabled = Boolean(env.SMTP_HOST && env.MAIL_FROM);

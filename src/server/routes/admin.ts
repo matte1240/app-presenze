@@ -1,6 +1,5 @@
 import { Hono } from "hono";
-import { requireAdmin } from "../auth/guards";
-import { env } from "../env";
+import { orgOf, requireAdmin } from "../auth/guards";
 import type { AppEnv } from "../http/app-env";
 import { exportData, exportFilename } from "../services/export";
 
@@ -18,6 +17,6 @@ export const adminRoutes = new Hono<AppEnv>()
     const data = await exportData();
     return c.body(JSON.stringify(data, null, 2), 200, {
       "Content-Type": "application/json; charset=utf-8",
-      "Content-Disposition": `attachment; filename="${exportFilename(env.APP_NAME)}"`,
+      "Content-Disposition": `attachment; filename="${exportFilename(orgOf(c).slug)}"`,
     });
   });

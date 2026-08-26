@@ -49,8 +49,32 @@ export const nameSchema = z.string().trim().min(1, "Il nome è obbligatorio").ma
 
 // ── Authentication ────────────────────────────────────────────────────────
 
-export const loginSchema = z.object({ email: emailSchema, password: z.string().min(1) });
-export const setupSchema = z.object({ name: nameSchema, email: emailSchema, password: passwordSchema });
+/**
+ * `organizationId` is the second half of a two-step sign-in. It is absent the
+ * first time; if the address and password match an account in more than one
+ * company, the server answers with the list and the browser asks again naming
+ * one. Nothing is disclosed by that list which the password did not already
+ * unlock.
+ */
+export const loginSchema = z.object({
+  email: emailSchema,
+  password: z.string().min(1),
+  organizationId: z.string().min(1).optional(),
+});
+
+export const organizationNameSchema = z
+  .string()
+  .trim()
+  .min(2, "Il nome dell'organizzazione è obbligatorio")
+  .max(120);
+
+/** Creating a company and its first administrator, in one step. */
+export const signupSchema = z.object({
+  organizationName: organizationNameSchema,
+  name: nameSchema,
+  email: emailSchema,
+  password: passwordSchema,
+});
 export const forgotPasswordSchema = z.object({ email: emailSchema });
 export const resetPasswordSchema = z.object({ token: z.string().min(1), password: passwordSchema });
 export const changePasswordSchema = z.object({

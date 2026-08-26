@@ -31,6 +31,7 @@ export async function withJobLock(key: number, run: () => Promise<void>): Promis
 }
 
 const REMINDER_LOCK = 4_201_001;
+const TRIAL_SWEEP_LOCK = 4_201_003;
 
 export function startScheduledJobs(): void {
   if (started) return;
@@ -49,5 +50,20 @@ export function startScheduledJobs(): void {
     options,
   );
 
-  console.info(`Job pianificati: promemoria "${env.REMINDER_CRON}" (${env.TZ})`);
+  // Once a day, a little after midnight: trials that ran out overnight should
+  // be read-only by the time anyone opens the application.
+  cron.schedule(
+    "15 1 * * *",
+    () => {
+      void withJobLock(TRIAL_SWEEP_LOCK, async () => {
+        const m = await import("./trials");
+        await m.expireLapsedTrials();
+      }).catch((e) => console.error("Controllo dei trial fallito:", e));
+    },
+    options,
+  );
+
+  console.info(
+    `Job pianificati: promemoria "${env.REMINDER_CRON}", scadenza trial "15 1 * * *" (${env.TZ})`,
+  );
 }

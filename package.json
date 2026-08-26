@@ -15,6 +15,7 @@
     "build:server": "node scripts/build-server.mjs",
     "start": "node dist/server/index.js",
     "test": "vitest run",
+    "test:isolation": "vitest run src/server/tenant-isolation.test.ts",
     "test:watch": "vitest",
     "generate:routes": "node scripts/generate-routes.mjs",
     "typecheck": "tsc --noEmit",

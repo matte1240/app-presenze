@@ -4,6 +4,7 @@ import {
   ChartColumn,
   ClipboardList,
   Clock3,
+  CreditCard,
   LogOut,
   Menu,
   Moon,
@@ -15,6 +16,7 @@ import {
 } from "lucide-react";
 import { useState, type ComponentType } from "react";
 import { sessionQuery, useLogout, type CurrentUser } from "../api/session";
+import { SubscriptionBanner } from "../features/billing/status-banner";
 import { t } from "../i18n/it";
 import { cn } from "../ui/cn";
 import { Avatar, Button } from "../ui/primitives";
@@ -24,7 +26,7 @@ export const Route = createFileRoute("/_app")({
   beforeLoad: async ({ context }) => {
     const session = await context.queryClient.ensureQueryData(sessionQuery);
     if (!session) throw redirect({ to: "/", search: { expired: true } });
-    return { user: session.user };
+    return { user: session.user, organization: session.organization };
   },
   component: AppShell,
 });
@@ -42,6 +44,7 @@ const NAV: NavItem[] = [
   { to: "/richieste", label: t.nav.requests, icon: ClipboardList },
   { to: "/report", label: t.nav.reports, icon: ChartColumn },
   { to: "/utenti", label: t.nav.users, icon: Users, adminOnly: true },
+  { to: "/abbonamento", label: t.nav.billing, icon: CreditCard, adminOnly: true },
   { to: "/manutenzione", label: t.nav.maintenance, icon: Server, adminOnly: true },
   { to: "/profilo", label: t.nav.profile, icon: User },
 ];
@@ -54,7 +57,7 @@ function visibleTo(user: CurrentUser) {
 }
 
 function AppShell() {
-  const { user } = Route.useRouteContext();
+  const { user, organization } = Route.useRouteContext();
   const [drawerOpen, setDrawerOpen] = useState(false);
   const items = visibleTo(user);
   const pathname = useRouterState({ select: (s) => s.location.pathname });
@@ -89,6 +92,7 @@ function AppShell() {
         </header>
 
         <main className="mx-auto w-full max-w-[88rem] p-4 sm:px-6 sm:py-5">
+          <SubscriptionBanner organization={organization} isAdmin={user.role === "ADMIN"} />
           <Outlet />
         </main>
       </div>

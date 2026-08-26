@@ -6,9 +6,13 @@ services:
       POSTGRES_DB: ${POSTGRES_DB:-presenze}
       POSTGRES_USER: ${POSTGRES_USER:-presenze}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?serve una password per il database}
+      POSTGRES_APP_PASSWORD: ${POSTGRES_APP_PASSWORD:?serve una password per il ruolo applicativo}
       TZ: ${TZ:-Europe/Rome}
     volumes:
       - pgdata:/var/lib/postgresql/data
+      # Creates the unprivileged role the application uses. Runs once, when the
+      # data directory is first initialised.
+      - ./docker/init-app-role.sh:/docker-entrypoint-initdb.d/10-app-role.sh:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-presenze} -d ${POSTGRES_DB:-presenze}"]
       interval: 10s
@@ -30,10 +34,17 @@ services:
       TZ: ${TZ:-Europe/Rome}
       APP_URL: ${APP_URL:-http://localhost:3000}
       APP_NAME: ${APP_NAME:-Presenze}
-      COMPANY_NAME: ${COMPANY_NAME:-}
-      HOLIDAY_PATRON_DAYS: ${HOLIDAY_PATRON_DAYS:-}
+      DEFAULT_HOLIDAY_PATRON_DAYS: ${DEFAULT_HOLIDAY_PATRON_DAYS:-}
 
-      DATABASE_URL: postgres://${POSTGRES_USER:-presenze}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-presenze}
+      # The application runs as the restricted role; only migrations and the
+      # cross-company paths use the owner. See .env.example.
+      DATABASE_URL: postgres://presenze_app:${POSTGRES_APP_PASSWORD}@db:5432/${POSTGRES_DB:-presenze}
+      DATABASE_ADMIN_URL: postgres://${POSTGRES_USER:-presenze}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-presenze}
+
+      SIGNUP_ENABLED: ${SIGNUP_ENABLED:-true}
+      TRIAL_DAYS: ${TRIAL_DAYS:-14}
+      PLATFORM_ADMIN_EMAIL: ${PLATFORM_ADMIN_EMAIL:-}
+      PLATFORM_ADMIN_PASSWORD: ${PLATFORM_ADMIN_PASSWORD:-}
 
       SMTP_HOST: ${SMTP_HOST:-}
       SMTP_PORT: ${SMTP_PORT:-587}

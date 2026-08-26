@@ -1,11 +1,13 @@
 # Presenze
 
-Gestionale di presenze e cartellini per una singola azienda. Il dipendente
-registra le ore giorno per giorno, l'amministratore approva ferie e permessi ed
-esporta il riepilogo mensile per le paghe.
+Gestionale di presenze e cartellini, multi-azienda. Il dipendente registra le
+ore giorno per giorno, l'amministratore approva ferie e permessi ed esporta il
+riepilogo mensile per le paghe.
 
-Un solo processo Node serve sia l'API sia l'interfaccia, su un database
-PostgreSQL. Non serve altro.
+Una sola istanza serve tutte le organizzazioni clienti: ognuna ha i propri
+utenti, il proprio calendario di festività, il proprio fuso e il proprio
+abbonamento. Un solo processo Node serve sia l'API sia l'interfaccia, su un
+database PostgreSQL. Non serve altro.
 
 ## Avvio rapido
 
@@ -13,20 +15,62 @@ PostgreSQL. Non serve altro.
 docker compose up --build
 ```
 
-Apri <http://localhost:3000>: al primo accesso l'applicazione chiede di creare
-l'account amministratore. Da lì si creano i dipendenti e si assegna a ciascuno
-l'orario settimanale.
+Apri <http://localhost:3000> e crea la tua organizzazione: parte una prova
+gratuita di quattordici giorni. Da lì si creano i dipendenti e si assegna a
+ciascuno l'orario settimanale.
+
+Con `SIGNUP_ENABLED=false` la pagina di registrazione sparisce e le
+organizzazioni le crei solo tu dal back-office.
 
 ### Sviluppo
 
 ```bash
 npm install
 docker compose up -d db   # basta il database
-npm run db:seed           # facoltativo: due utenti di prova e due settimane di ore
+npm run db:seed           # facoltativo: due aziende di prova, con utenti e ore
 npm run dev               # API su :3000, interfaccia su :5173
 ```
 
-Il seed stampa le credenziali che crea.
+Il seed stampa le credenziali che crea. Crea **due** organizzazioni di
+proposito: chi sviluppa con un solo cliente nel database finisce prima o poi per
+scrivere una query che dà per scontato che ce ne sia uno solo.
+
+## Isolamento fra organizzazioni
+
+Ogni riga di ogni tabella porta la propria `organization_id`, e la separazione è
+tenuta su due livelli indipendenti.
+
+**Nel codice.** Ogni query filtra esplicitamente. Il tenant non viaggia però di
+parametro in parametro: `loadSession` lo stabilisce una volta per richiesta e
+tutto ciò che sta sotto lo legge dal contesto (`src/server/db/context.ts`).
+Chiedere il tenant fuori da una richiesta è un errore rumoroso, non un risultato
+vuoto.
+
+**Nel database.** PostgreSQL applica una *row-level security policy* su `users`,
+`work_schedules`, `time_entries` e `leave_requests`, confrontando ogni riga con
+`app.current_org_id`, impostata sulla transazione della richiesta. È la rete che
+regge se un `WHERE` viene dimenticato in un refactoring: il database non
+restituisce la riga comunque sia scritta la query.
+
+Perché quella rete esista davvero servono **due ruoli**: l'applicazione entra con
+un ruolo che non possiede le tabelle ed è quindi soggetto alle policy, mentre il
+proprietario — che PostgreSQL esenta — serve solo alle migrazioni e ai tre casi
+che devono per forza attraversare le aziende: risolvere un'email al login, il
+back-office e il job notturno. In produzione `DATABASE_ADMIN_URL` è
+obbligatoria: senza, l'applicazione girerebbe come proprietaria e si rifiuta di
+partire.
+
+Il test che difende tutto questo è `src/server/tenant-isolation.test.ts`. Gira
+contro un PostgreSQL vero e va eseguito prima di ogni rilascio:
+
+```bash
+TEST_DATABASE_URL=postgres://presenze_app:...@localhost:5432/presenze_test \
+TEST_DATABASE_ADMIN_URL=postgres://presenze:...@localhost:5432/presenze_test \
+npm run test:isolation
+```
+
+Senza quelle variabili il test si salta invece di fallire, così `npm test`
+funziona anche su una macchina senza database.
 
 ## Come funziona
 
@@ -48,8 +92,9 @@ Il calcolo avviene **sul server**. Il browser lo esegue anche in locale, ma solo
 per mostrare l'anteprima mentre si compila: ciò che viene salvato è sempre il
 risultato del server.
 
-**Le festività italiane** sono calcolate, non configurate. Le patronali locali si
-aggiungono con `HOLIDAY_PATRON_DAYS`.
+**Le festività italiane** sono calcolate, non configurate. Le patronali locali
+appartengono alla singola organizzazione, così due clienti in due province non
+condividono il santo patrono.
 
 **Le richieste di assenza** approvate generano automaticamente le giornate nel
 cartellino, saltando festivi e giorni non lavorativi secondo l'orario di quella
@@ -76,6 +121,7 @@ significa quindi toccare `ui/tokens.css` e `ui/primitives/`, non la logica.
 |---|---|
 | `npm run dev` | API e interfaccia in sviluppo |
 | `npm test` | test del dominio |
+| `npm run test:isolation` | test di isolamento fra organizzazioni (serve un PostgreSQL) |
 | `npm run typecheck` | TypeScript su tutto il progetto |
 | `npm run lint` | ESLint, incluse le regole di confine fra i layer |
 | `npm run build` | bundle di interfaccia e server in `dist/` |

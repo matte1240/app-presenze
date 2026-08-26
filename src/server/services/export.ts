@@ -8,11 +8,13 @@
  * data lives in it.
  *
  * What an administrator actually needs is their own data, in a form they can
- * keep. That is this: a plain JSON document, no file paths, nothing that
- * reaches past the rows the caller is allowed to read. Backing up the database
- * itself is an operator's job (`pg_dump`), documented in the README.
+ * keep. That is this: a plain JSON document holding one company's rows and no
+ * one else's. Backing up the database itself is an operator's job (`pg_dump`),
+ * documented in the README.
  */
+import { eq } from "drizzle-orm";
 import { db } from "../db/client";
+import { currentOrg, currentOrgId } from "../db/context";
 import { leaveRequests, timeEntries, users, workSchedules } from "../db/schema";
 
 export const EXPORT_FORMAT_VERSION = 1;
@@ -20,6 +22,7 @@ export const EXPORT_FORMAT_VERSION = 1;
 export interface DataExport {
   formatVersion: number;
   exportedAt: string;
+  organization: { id: string; name: string; slug: string };
   users: unknown[];
   workSchedules: unknown[];
   timeEntries: unknown[];
@@ -31,16 +34,28 @@ export interface DataExport {
  * with a shelf life, not records worth carrying anywhere.
  */
 export async function exportData(): Promise<DataExport> {
+  const organization = currentOrg();
+  const mine = currentOrgId();
+
   const [userRows, scheduleRows, entryRows, requestRows] = await Promise.all([
-    db.select().from(users).orderBy(users.name),
-    db.select().from(workSchedules),
-    db.select().from(timeEntries).orderBy(timeEntries.workDate),
-    db.select().from(leaveRequests).orderBy(leaveRequests.startDate),
+    db.select().from(users).where(eq(users.organizationId, mine)).orderBy(users.name),
+    db.select().from(workSchedules).where(eq(workSchedules.organizationId, mine)),
+    db
+      .select()
+      .from(timeEntries)
+      .where(eq(timeEntries.organizationId, mine))
+      .orderBy(timeEntries.workDate),
+    db
+      .select()
+      .from(leaveRequests)
+      .where(eq(leaveRequests.organizationId, mine))
+      .orderBy(leaveRequests.startDate),
   ]);
 
   return {
     formatVersion: EXPORT_FORMAT_VERSION,
     exportedAt: new Date().toISOString(),
+    organization: { id: organization.id, name: organization.name, slug: organization.slug },
     // The hash never leaves the database, even in an export the administrator
     // asked for: it is the one field that would turn a leaked file into a set
     // of guessable passwords.

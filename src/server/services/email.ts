@@ -77,19 +77,24 @@ async function send(to: string, subject: string, layout: Layout, replyTo?: strin
 const list = (items: readonly string[]) =>
   `<ul style="margin:0 0 12px;padding-left:20px;line-height:1.8">${items.map((i) => `<li>${i}</li>`).join("")}</ul>`;
 
-export function sendPasswordResetEmail(to: string, token: string) {
-  return send(to, "Reimposta la tua password", {
+/**
+ * `organizationName` is not decoration. The same address can hold an account in
+ * more than one company, each with its own password, and a link that does not
+ * say which one it opens is a link the recipient cannot use.
+ */
+export function sendPasswordResetEmail(to: string, token: string, organizationName: string) {
+  return send(to, `Reimposta la tua password — ${organizationName}`, {
     title: "Reimposta la password",
-    intro: "Abbiamo ricevuto una richiesta di reimpostazione della password per il tuo account.",
+    intro: `Abbiamo ricevuto una richiesta di reimpostazione della password per il tuo account su ${escape(organizationName)}.`,
     action: { label: "Scegli una nuova password", href: `${env.APP_URL}/reset-password?token=${token}` },
     footnote: "Il link scade fra un'ora. Se non hai richiesto tu il cambio, puoi ignorare questa email.",
   });
 }
 
-export function sendWelcomeEmail(to: string, name: string, token: string) {
-  return send(to, `Il tuo accesso a ${env.APP_NAME}`, {
+export function sendWelcomeEmail(to: string, name: string, token: string, organizationName: string) {
+  return send(to, `Il tuo accesso a ${organizationName}`, {
     title: `Benvenuto, ${escape(name)}`,
-    intro: `È stato creato un account per te su ${escape(env.APP_NAME)}. Imposta una password per iniziare.`,
+    intro: `È stato creato un account per te su ${escape(organizationName)}. Imposta una password per iniziare.`,
     action: { label: "Imposta la password", href: `${env.APP_URL}/reset-password?token=${token}` },
     footnote: "Il link scade fra 24 ore.",
   });
