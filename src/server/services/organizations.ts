@@ -4,7 +4,7 @@
  */
 import { randomUUID } from "node:crypto";
 import { and, count, eq, ne } from "drizzle-orm";
-import { PLANS, type PlanId } from "@core/plans";
+import type { PlanId } from "@core/plans";
 import { hashPassword } from "../auth/password";
 import { db, platformDb } from "../db/client";
 import { currentOrgId } from "../db/context";
@@ -108,10 +108,6 @@ export async function seatsUsed(): Promise<number> {
     .from(users)
     .where(eq(users.organizationId, currentOrgId()));
   return Number(row?.total ?? 0);
-}
-
-export function seatLimitOf(organization: OrganizationRow): number | null {
-  return PLANS[organization.plan].maxEmployees;
 }
 
 /** Whether an address is already taken inside this organization. */

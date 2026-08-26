@@ -180,3 +180,25 @@ export function sendMissingTimesheetReminder(args: {
     action: { label: "Apri il calendario", href: `${env.APP_URL}/calendario` },
   });
 }
+
+export function sendTrialEndingEmail(args: {
+  to: string;
+  organizationName: string;
+  daysLeft: number;
+}) {
+  const when =
+    args.daysLeft === 0
+      ? "oggi"
+      : args.daysLeft === 1
+        ? "domani"
+        : `fra ${args.daysLeft} giorni`;
+
+  return send(args.to, `La prova di ${args.organizationName} finisce ${when}`, {
+    title: "La prova gratuita sta per finire",
+    intro:
+      `Il periodo di prova di <strong>${escape(args.organizationName)}</strong> finisce ${when}. ` +
+      "Dopo, i dati restano consultabili ed esportabili, ma non sarà più possibile registrare nuove ore.",
+    action: { label: "Scegli un piano", href: `${env.APP_URL}/abbonamento` },
+    footnote: "Se hai già attivato un abbonamento puoi ignorare questa email.",
+  });
+}

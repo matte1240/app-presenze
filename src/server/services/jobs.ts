@@ -58,6 +58,7 @@ export function startScheduledJobs(): void {
       void withJobLock(TRIAL_SWEEP_LOCK, async () => {
         const m = await import("./trials");
         await m.expireLapsedTrials();
+        await m.purgeExpiredCredentials();
       }).catch((e) => console.error("Controllo dei trial fallito:", e));
     },
     options,

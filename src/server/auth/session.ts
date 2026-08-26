@@ -120,4 +120,3 @@ export async function purgeExpiredSessions(): Promise<void> {
   await db.delete(sessions).where(lt(sessions.expiresAt, new Date()));
 }
 
-export const sessionKeyFor = digest;
