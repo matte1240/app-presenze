@@ -82,6 +82,51 @@ export const changePasswordSchema = z.object({
   newPassword: passwordSchema,
 });
 
+// ── Organization ──────────────────────────────────────────────────────────
+
+/**
+ * A real IANA zone, checked by asking the platform rather than by keeping a
+ * list of our own that would be wrong within a year.
+ */
+const isTimezone = (value: string): boolean => {
+  try {
+    new Intl.DateTimeFormat("en", { timeZone: value });
+    return true;
+  } catch {
+    return false;
+  }
+};
+
+/** `MM-DD`, comma separated — the shape `holidayConfigOf()` already reads. */
+const isPatronDays = (value: string): boolean =>
+  value
+    .split(",")
+    .map((d) => d.trim())
+    .filter(Boolean)
+    .every((d) => /^(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/.test(d));
+
+export const organizationSettingsSchema = z.object({
+  name: organizationNameSchema,
+  /** What staff see on the sign-in screen; defaults to the name. */
+  companyName: z.string().trim().max(120).nullable(),
+  timezone: z.string().refine((v): boolean => isTimezone(v), "Fuso orario non valido"),
+  holidayPatronDays: z
+    .string()
+    .trim()
+    .refine((v): boolean => isPatronDays(v), "Usa il formato MM-DD, separato da virgole"),
+});
+
+/**
+ * Changing the address changes the key you sign in with, so the current
+ * password comes with it. The name alone does not need one.
+ */
+export const updateProfileSchema = z
+  .object({
+    name: nameSchema,
+    email: emailSchema,
+    currentPassword: z.string().optional(),
+  });
+
 // ── Timesheet ─────────────────────────────────────────────────────────────
 
 /**

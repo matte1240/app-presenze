@@ -1,8 +1,15 @@
 import { randomUUID } from "node:crypto";
-import { and, count, eq, sql } from "drizzle-orm";
+import { and, count, desc, eq, ne, sql } from "drizzle-orm";
 import { Hono } from "hono";
+import { getCookie } from "hono/cookie";
 import type { Weekday } from "@core/date";
-import { adminResetPasswordSchema, createUserSchema, updateUserSchema, weekSchedulePayloadSchema } from "@core/contracts";
+import {
+  adminResetPasswordSchema,
+  createUserSchema,
+  updateProfileSchema,
+  updateUserSchema,
+  weekSchedulePayloadSchema,
+} from "@core/contracts";
 import type { DaySchedule } from "@core/schedule";
 import { toClock, type Span } from "@core/time";
 import { seatsAvailable, smallestPlanFor, PLANS } from "@core/plans";
@@ -13,13 +20,13 @@ import {
   requireUser,
   sessionOf,
 } from "../auth/guards";
-import { hashPassword } from "../auth/password";
-import { revokeAllSessions } from "../auth/session";
+import { hashPassword, verifyPassword } from "../auth/password";
+import { revokeAllSessions, sessionKeyFor, SESSION_COOKIE } from "../auth/session";
 import { db } from "../db/client";
 import { currentOrgId } from "../db/context";
-import { leaveRequests, timeEntries, users } from "../db/schema";
+import { leaveRequests, sessions, timeEntries, users } from "../db/schema";
 import type { AppEnv } from "../http/app-env";
-import { conflict, forbidden, notFound } from "../http/errors";
+import { conflict, forbidden, invalid, notFound } from "../http/errors";
 import { validate } from "../http/validate";
 import { issueResetToken } from "./auth";
 import {
@@ -82,6 +89,84 @@ export const meRoutes = new Hono<AppEnv>()
     const session = sessionOf(c);
     const week = await weekScheduleOf(session.user.id);
     return c.json(await missingDaysFor(session.user.id, week));
+  })
+
+  /**
+   * Your own name and address.
+   *
+   * The address is the key you sign in with, so changing it asks for the
+   * current password — the same bar as changing the password itself. Changing
+   * only the name does not.
+   */
+  .patch("/", validate("json", updateProfileSchema), async (c) => {
+    const { user } = sessionOf(c);
+    const { name, email, currentPassword } = c.req.valid("json");
+    const nextEmail = email.toLowerCase();
+
+    if (nextEmail !== user.email) {
+      if (!currentPassword || !(await verifyPassword(currentPassword, user.passwordHash))) {
+        throw invalid("Per cambiare l'email serve la password attuale");
+      }
+      if (await emailTaken(nextEmail, user.id)) {
+        throw conflict("Esiste già un utente con questa email");
+      }
+    }
+
+    const [updated] = await db
+      .update(users)
+      .set({ name, email: nextEmail, updatedAt: new Date() })
+      .where(and(eq(users.organizationId, currentOrgId()), eq(users.id, user.id)))
+      .returning(publicUser);
+
+    return c.json({ user: updated });
+  })
+
+  /**
+   * Where this account is signed in.
+   *
+   * Somewhere to notice a session you do not recognise, and end it, without
+   * having to change your password to do it.
+   */
+  .get("/sessions", async (c) => {
+    const { user } = sessionOf(c);
+    const currentKey = sessionKeyFor(getCookie(c, SESSION_COOKIE) ?? "");
+
+    const rows = await db
+      .select()
+      .from(sessions)
+      .where(and(eq(sessions.organizationId, currentOrgId()), eq(sessions.userId, user.id)))
+      .orderBy(desc(sessions.lastSeenAt));
+
+    return c.json({
+      sessions: rows.map((row) => ({
+        // Never the id itself: it is the digest of a live cookie.
+        id: row.id.slice(0, 8),
+        current: row.id === currentKey,
+        userAgent: row.userAgent,
+        lastSeenAt: row.lastSeenAt.toISOString(),
+        createdAt: row.createdAt.toISOString(),
+        impersonated: Boolean(row.impersonatedBy),
+      })),
+    });
+  })
+
+  /** Ends every session but the one asking. */
+  .delete("/sessions", async (c) => {
+    const { user } = sessionOf(c);
+    const currentKey = sessionKeyFor(getCookie(c, SESSION_COOKIE) ?? "");
+
+    const removed = await db
+      .delete(sessions)
+      .where(
+        and(
+          eq(sessions.organizationId, currentOrgId()),
+          eq(sessions.userId, user.id),
+          ne(sessions.id, currentKey),
+        ),
+      )
+      .returning({ id: sessions.id });
+
+    return c.json({ closed: removed.length });
   });
 
 export const userRoutes = new Hono<AppEnv>()

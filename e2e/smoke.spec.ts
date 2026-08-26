@@ -50,6 +50,7 @@ test.describe("l'applicazione", () => {
       ["Richieste", "Approva o rifiuta le richieste del team."],
       ["Report", "Riepiloghi mensili ed esportazione per le paghe."],
       ["Utenti", "Account, ruoli e orari di lavoro."],
+      ["Organizzazione", "Dati dell'azienda, fuso orario e calendario."],
       ["Abbonamento", "Piano, utenti e fatturazione."],
       ["Manutenzione", "I tuoi dati, quando ti servono altrove."],
       ["Profilo", "I tuoi dati e la password."],

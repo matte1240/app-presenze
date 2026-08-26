@@ -9,6 +9,7 @@ import { hoursRoutes } from "./routes/hours";
 import { reportRoutes } from "./routes/reports";
 import { requestRoutes } from "./routes/requests";
 import { platformRoutes } from "./routes/platform";
+import { organizationRoutes } from "./routes/organization";
 import { meRoutes, userRoutes } from "./routes/users";
 import { webhookRoutes } from "./routes/webhooks";
 
@@ -32,6 +33,7 @@ export const api = new Hono<AppEnv>()
   .route("/auth", authRoutes)
   .route("/me", meRoutes)
   .route("/users", userRoutes)
+  .route("/organization", organizationRoutes)
   .route("/hours", hoursRoutes)
   .route("/requests", requestRoutes)
   .route("/reports", reportRoutes)

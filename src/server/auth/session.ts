@@ -116,6 +116,15 @@ export async function revokeOrganizationSessions(organizationId: string): Promis
   await db.delete(sessions).where(eq(sessions.organizationId, organizationId));
 }
 
+/**
+ * The digest a cookie hashes to.
+ *
+ * Only for recognising which row in a list of sessions is the one asking: the
+ * stored id is a digest precisely so the token itself never has to leave the
+ * browser, and nothing here reverses that.
+ */
+export const sessionKeyFor = digest;
+
 export async function purgeExpiredSessions(): Promise<void> {
   await db.delete(sessions).where(lt(sessions.expiresAt, new Date()));
 }

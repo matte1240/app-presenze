@@ -1,5 +1,6 @@
 import { createFileRoute, Link, Outlet, redirect, useRouterState } from "@tanstack/react-router";
 import {
+  Building2,
   CalendarDays,
   ChartColumn,
   ClipboardList,
@@ -49,6 +50,7 @@ const NAV: NavItem[] = [
   { to: "/richieste", label: t.nav.requests, icon: ClipboardList },
   { to: "/report", label: t.nav.reports, icon: ChartColumn },
   { to: "/utenti", label: t.nav.users, icon: Users, adminOnly: true },
+  { to: "/organizzazione", label: t.nav.organization, icon: Building2, adminOnly: true },
   { to: "/abbonamento", label: t.nav.billing, icon: CreditCard, adminOnly: true },
   { to: "/manutenzione", label: t.nav.maintenance, icon: Server, adminOnly: true },
   { to: "/profilo", label: t.nav.profile, icon: User },
