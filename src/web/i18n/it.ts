@@ -61,6 +61,32 @@ export const t = {
     alreadyRegistered: "Hai già un account?",
   },
 
+  platform: {
+    title: "Back-office",
+    loginHint: "Area riservata alla gestione delle organizzazioni clienti.",
+    organizations: "Organizzazioni",
+    organization: "Organizzazione",
+    newOrganization: "Nuova organizzazione",
+    newOrganizationHint:
+      "L'amministratore riceve un invito per impostare la password. Parte in prova gratuita.",
+    adminName: "Nome dell'amministratore",
+    adminEmail: "Email dell'amministratore",
+    inviteNotice: "Nessuna password viene impostata qui: l'accesso avviene solo tramite l'invito.",
+    createdInvited: "Organizzazione creata e invito inviato.",
+    createdNoEmail: "Organizzazione creata. L'email non è configurata: l'invito non è partito.",
+    impersonate: "Entra come amministratore",
+    export: "Esporta i dati",
+    expiry: "Scadenza",
+    actions: "Azioni",
+    saved: "Modifica salvata.",
+    audit: "Registro delle operazioni",
+    when: "Quando",
+    who: "Chi",
+    what: "Cosa",
+    impersonationBanner:
+      "Stai operando dentro questa organizzazione dal back-office. Ogni azione è registrata.",
+  },
+
   billing: {
     title: "Abbonamento",
     subtitle: "Piano, utenti e fatturazione.",

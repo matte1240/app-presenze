@@ -8,6 +8,7 @@ import { billingRoutes } from "./routes/billing";
 import { hoursRoutes } from "./routes/hours";
 import { reportRoutes } from "./routes/reports";
 import { requestRoutes } from "./routes/requests";
+import { platformRoutes } from "./routes/platform";
 import { meRoutes, userRoutes } from "./routes/users";
 import { webhookRoutes } from "./routes/webhooks";
 
@@ -21,6 +22,11 @@ export const api = new Hono<AppEnv>()
   // their signature is computed over the raw body, so nothing may consume it
   // before the verification does.
   .route("/webhooks", webhookRoutes)
+
+  // The back-office authenticates against its own table with its own cookie,
+  // so it never passes through `loadSession` and cannot be reached with a
+  // tenant session however that session was obtained.
+  .route("/platform", platformRoutes)
 
   .use("*", loadSession)
   .route("/auth", authRoutes)

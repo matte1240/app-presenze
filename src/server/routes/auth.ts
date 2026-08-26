@@ -250,7 +250,7 @@ export const authRoutes = new Hono<AppEnv>()
   )
 
   .get("/me", requireUser, async (c) => {
-    const { user, organization, idleExpiresAt } = sessionOf(c);
+    const { user, organization, idleExpiresAt, impersonatedBy } = sessionOf(c);
     return c.json({
       user: {
         id: user.id,
@@ -264,6 +264,8 @@ export const authRoutes = new Hono<AppEnv>()
         createdAt: user.createdAt.toISOString(),
       },
       organization: organizationSummary(organization, await seatsUsed()),
+      /** Drives the banner: support being in your account is not a secret. */
+      impersonated: Boolean(impersonatedBy),
       /** Drives the idle warning in the SPA; the server remains the authority. */
       idleExpiresAt: idleExpiresAt.toISOString(),
     });

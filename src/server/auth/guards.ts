@@ -54,6 +54,7 @@ export const loadSession = createMiddleware<AppEnv>(async (c, next) => {
         organization: currentOrg(),
         expiresAt: found.expiresAt,
         idleExpiresAt: found.idleExpiresAt,
+        impersonatedBy: found.impersonatedBy,
       });
       await next();
     });

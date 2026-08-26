@@ -72,6 +72,27 @@ npm run test:db
 Senza quelle variabili i test si saltano invece di fallire, così `npm test`
 funziona anche su una macchina senza database.
 
+## Back-office
+
+Su `/piattaforma` c'è una superficie separata per gestire le organizzazioni
+clienti: elenco con piano, stato e persone, creazione assistita di una nuova
+azienda (l'amministratore riceve un invito, nessuna password viene impostata),
+cambio di piano, sospensione, esportazione dei dati e accesso di supporto
+dentro l'account.
+
+Non è un ruolo in più dentro l'applicazione: ha una tabella propria, un cookie
+proprio e un login proprio. Se «può amministrare la piattaforma» fosse un valore
+nella colonna `role` dei clienti, ogni percorso che scrive quella colonna
+diventerebbe una possibile via d'uscita da un account e d'ingresso in tutti.
+
+Il primo accesso si crea al boot con `PLATFORM_ADMIN_EMAIL` e
+`PLATFORM_ADMIN_PASSWORD`, e solo finché non ne esiste nessuno.
+
+Quando qualcuno entra in un'organizzazione dal back-office, la sessione resta
+marcata: il cliente vede un banner fisso in cima a ogni schermata, e
+l'operazione finisce nel registro. Chi lavora dentro l'account di qualcun altro
+deve farlo alla luce del sole.
+
 ## Abbonamenti
 
 I piani stanno nel codice (`src/core/plans.ts`), non in una tabella: un prezzo e

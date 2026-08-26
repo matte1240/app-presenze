@@ -9,6 +9,7 @@ import {
   Menu,
   Moon,
   Server,
+  ShieldAlert,
   Sun,
   User,
   Users,
@@ -26,7 +27,11 @@ export const Route = createFileRoute("/_app")({
   beforeLoad: async ({ context }) => {
     const session = await context.queryClient.ensureQueryData(sessionQuery);
     if (!session) throw redirect({ to: "/", search: { expired: true } });
-    return { user: session.user, organization: session.organization };
+    return {
+      user: session.user,
+      organization: session.organization,
+      impersonated: session.impersonated,
+    };
   },
   component: AppShell,
 });
@@ -57,7 +62,7 @@ function visibleTo(user: CurrentUser) {
 }
 
 function AppShell() {
-  const { user, organization } = Route.useRouteContext();
+  const { user, organization, impersonated } = Route.useRouteContext();
   const [drawerOpen, setDrawerOpen] = useState(false);
   const items = visibleTo(user);
   const pathname = useRouterState({ select: (s) => s.location.pathname });
@@ -90,6 +95,15 @@ function AppShell() {
           <ThemeToggle />
           <UserMenu user={user} />
         </header>
+
+        {/* Not dismissible, and above everything: somebody from support being
+            inside this account is not a detail to tuck away. */}
+        {impersonated ? (
+          <div className="flex items-center gap-2 bg-warning px-4 py-2 text-label text-warning-foreground">
+            <ShieldAlert className="size-4 shrink-0" aria-hidden />
+            {t.platform.impersonationBanner}
+          </div>
+        ) : null}
 
         <main className="mx-auto w-full max-w-[88rem] p-4 sm:px-6 sm:py-5">
           <SubscriptionBanner organization={organization} isAdmin={user.role === "ADMIN"} />

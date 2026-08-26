@@ -34,6 +34,8 @@ export interface CurrentOrganization {
 export interface Session {
   user: CurrentUser;
   organization: CurrentOrganization;
+  /** True when the back-office opened this session, not the user. */
+  impersonated: boolean;
   idleExpiresAt: string;
 }
 

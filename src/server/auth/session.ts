@@ -35,6 +35,7 @@ export interface SessionLookup {
   readonly userId: string;
   readonly expiresAt: Date;
   readonly idleExpiresAt: Date;
+  readonly impersonatedBy: string | null;
 }
 
 /** What the request sees, once the tenant is open and the rows are loaded. */
@@ -43,12 +44,19 @@ export interface ActiveSession {
   readonly organization: OrganizationRow;
   readonly expiresAt: Date;
   readonly idleExpiresAt: Date;
+  readonly impersonatedBy: string | null;
 }
 
+/**
+ * `impersonatedBy` is set only by the back-office. It is carried on the session
+ * rather than inferred later so the application can say so plainly to the
+ * people whose account it is.
+ */
 export async function createSession(
   organizationId: string,
   userId: string,
   userAgent?: string,
+  impersonatedBy?: string,
 ): Promise<string> {
   const token = randomBytes(32).toString("base64url");
   const nowMs = Date.now();
@@ -59,6 +67,7 @@ export async function createSession(
     expiresAt: new Date(nowMs + ABSOLUTE_TIMEOUT_MS),
     lastSeenAt: new Date(nowMs),
     userAgent: userAgent?.slice(0, 200) ?? null,
+    impersonatedBy: impersonatedBy ?? null,
   });
   return token;
 }
@@ -86,6 +95,7 @@ export async function findSession(token: string | undefined): Promise<SessionLoo
     userId: row.userId,
     expiresAt: row.expiresAt,
     idleExpiresAt: new Date(nowMs + IDLE_TIMEOUT_MS),
+    impersonatedBy: row.impersonatedBy,
   };
 }
 

@@ -66,6 +66,12 @@ export const sessions = pgTable(
     expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
     lastSeenAt: timestamp("last_seen_at", { withTimezone: true }).notNull(),
     userAgent: text("user_agent"),
+    /**
+     * Set when a platform administrator opened this session from the
+     * back-office rather than the user signing in. Support work inside
+     * somebody's account should be visible to them, not silent.
+     */
+    impersonatedBy: text("impersonated_by"),
     createdAt: now(),
   },
   (t) => [index("sessions_user_idx").on(t.userId)],
