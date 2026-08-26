@@ -9,6 +9,25 @@ on:
 jobs:
   check:
     runs-on: ubuntu-latest
+
+    services:
+      # The isolation between customers is enforced partly by PostgreSQL row
+      # policies, so it cannot be tested without one. A job that skipped those
+      # tests would be green on exactly the failure that matters most.
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: presenze_owner
+          POSTGRES_PASSWORD: owner
+          POSTGRES_DB: presenze_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U presenze_owner"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
     steps:
       - uses: actions/checkout@v4
 
@@ -32,6 +51,26 @@ jobs:
       # of the job; the previous workflow declared a "test" step that ran none.
       - name: Test
         run: npm test
+
+      # The restricted role is what the policies actually apply to: running the
+      # isolation tests as the table owner would prove nothing, since PostgreSQL
+      # exempts owners.
+      - name: Create the application role
+        run: |
+          psql "$ADMIN_URL" -v ON_ERROR_STOP=1 <<'SQL'
+            CREATE ROLE presenze_app LOGIN PASSWORD 'app';
+            GRANT USAGE ON SCHEMA public TO presenze_app;
+            ALTER DEFAULT PRIVILEGES FOR ROLE presenze_owner IN SCHEMA public
+              GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO presenze_app;
+          SQL
+        env:
+          ADMIN_URL: postgres://presenze_owner:owner@localhost:5432/presenze_test
+
+      - name: Test — isolation, billing and back-office
+        run: npm run test:db
+        env:
+          TEST_DATABASE_URL: postgres://presenze_app:app@localhost:5432/presenze_test
+          TEST_DATABASE_ADMIN_URL: postgres://presenze_owner:owner@localhost:5432/presenze_test
 
       - name: Build
         run: npm run build

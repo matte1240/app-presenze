@@ -72,6 +72,24 @@ npm run test:db
 Senza quelle variabili i test si saltano invece di fallire, così `npm test`
 funziona anche su una macchina senza database.
 
+## Migrare un cliente esistente
+
+L'installazione mono-azienda su SQLite si porta dentro con uno script:
+
+```bash
+DATABASE_ADMIN_URL=postgres://... \
+node scripts/import-sqlite.mjs ./data/app.db "Nome Azienda" --plan PRO --status ACTIVE
+```
+
+Utenti, orari, cartellini e richieste arrivano con gli stessi identificativi e
+con gli stessi hash delle password: chi c'era ritrova il proprio account com'era,
+senza doversi reimpostare nulla. Sessioni e token di reimpostazione restano
+indietro di proposito — sono credenziali con una scadenza, e trascinarle
+attraverso un cambio di modello di autenticazione non ha senso.
+
+Lo script rifiuta di importare due volte la stessa origine, e va eseguito una
+sola volta per cliente.
+
 ## Back-office
 
 Su `/piattaforma` c'è una superficie separata per gestire le organizzazioni
