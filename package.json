@@ -15,7 +15,7 @@
     "build:server": "node scripts/build-server.mjs",
     "start": "node dist/server/index.js",
     "test": "vitest run",
-    "test:db": "vitest run src/server/tenant-isolation.test.ts src/server/billing.test.ts src/server/platform.test.ts src/server/trials.test.ts",
+    "test:db": "vitest run src/server/tenant-isolation.test.ts src/server/billing.test.ts src/server/platform.test.ts src/server/trials.test.ts src/server/deactivation.test.ts",
     "test:e2e": "playwright test",
     "test:isolation": "vitest run src/server/tenant-isolation.test.ts",
     "test:watch": "vitest",

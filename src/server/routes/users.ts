@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { and, eq, sql } from "drizzle-orm";
+import { and, count, eq, sql } from "drizzle-orm";
 import { Hono } from "hono";
 import type { Weekday } from "@core/date";
 import { adminResetPasswordSchema, createUserSchema, updateUserSchema, weekSchedulePayloadSchema } from "@core/contracts";
@@ -17,7 +17,7 @@ import { hashPassword } from "../auth/password";
 import { revokeAllSessions } from "../auth/session";
 import { db } from "../db/client";
 import { currentOrgId } from "../db/context";
-import { timeEntries, users } from "../db/schema";
+import { leaveRequests, timeEntries, users } from "../db/schema";
 import type { AppEnv } from "../http/app-env";
 import { conflict, forbidden, notFound } from "../http/errors";
 import { validate } from "../http/validate";
@@ -46,6 +46,7 @@ const publicUser = {
   canWorkSunday: users.canWorkSunday,
   has104: users.has104,
   hasPaternity: users.hasPaternity,
+  deactivatedAt: users.deactivatedAt,
   createdAt: users.createdAt,
 };
 
@@ -204,10 +205,86 @@ export const userRoutes = new Hono<AppEnv>()
     return c.json({ user: updated });
   })
 
+  /**
+   * Deactivation is the ordinary way a person leaves.
+   *
+   * Their account stops working, their seat is freed, and they drop out of the
+   * reminder sweep — while every hour they ever recorded stays exactly where it
+   * is. Deleting them would take all of it with them, and a timesheet is a
+   * payroll record.
+   */
+  .post("/:id/deactivate", async (c) => {
+    const session = sessionOf(c);
+    const target = await mustExist(c.req.param("id"));
+    if (target.id === session.user.id) throw forbidden("Non puoi disattivare il tuo stesso account");
+    if (target.deactivatedAt) return c.json({ ok: true, alreadyDeactivated: true });
+
+    await db
+      .update(users)
+      .set({ deactivatedAt: new Date(), updatedAt: new Date() })
+      .where(and(eq(users.organizationId, currentOrgId()), eq(users.id, target.id)));
+    // Whatever they had open stops working now, not at the next sign-in.
+    await revokeAllSessions(target.id);
+
+    return c.json({ ok: true });
+  })
+
+  .post("/:id/reactivate", async (c) => {
+    const organization = orgOf(c);
+    const target = await mustExist(c.req.param("id"));
+    if (!target.deactivatedAt) return c.json({ ok: true, alreadyActive: true });
+
+    // Coming back takes a seat, so it has to pass the same check as arriving.
+    if (!seatsAvailable(organization.plan, await seatsUsed())) {
+      const next = smallestPlanFor((await seatsUsed()) + 1);
+      throw conflict(
+        next
+          ? `Il piano ${PLANS[organization.plan].name} è al completo. Passa al piano ${next.name} per riattivare.`
+          : "Limite di utenti raggiunto per questo piano.",
+      );
+    }
+
+    await db
+      .update(users)
+      .set({ deactivatedAt: null, updatedAt: new Date() })
+      .where(and(eq(users.organizationId, currentOrgId()), eq(users.id, target.id)));
+    return c.json({ ok: true });
+  })
+
+  /** What deleting this person would destroy, so the confirmation can say so. */
+  .get("/:id/deletion-preview", async (c) => {
+    const target = await mustExist(c.req.param("id"));
+    const organizationId = currentOrgId();
+
+    const [entries] = await db
+      .select({ total: count() })
+      .from(timeEntries)
+      .where(and(eq(timeEntries.organizationId, organizationId), eq(timeEntries.userId, target.id)));
+    const [requests] = await db
+      .select({ total: count() })
+      .from(leaveRequests)
+      .where(and(eq(leaveRequests.organizationId, organizationId), eq(leaveRequests.userId, target.id)));
+
+    return c.json({
+      deactivated: Boolean(target.deactivatedAt),
+      timeEntries: Number(entries?.total ?? 0),
+      leaveRequests: Number(requests?.total ?? 0),
+    });
+  })
+
+  /**
+   * The destructive path, kept deliberately narrow: only on somebody already
+   * deactivated. It is for the account created by mistake and for a request to
+   * be forgotten — not for the ordinary business of someone leaving, which is
+   * what the two routes above are.
+   */
   .delete("/:id", async (c) => {
     const session = sessionOf(c);
     const target = await mustExist(c.req.param("id"));
     if (target.id === session.user.id) throw forbidden("Non puoi eliminare il tuo stesso account");
+    if (!target.deactivatedAt) {
+      throw conflict("Disattiva l'utente prima di eliminarlo definitivamente");
+    }
 
     await db
       .delete(users)
@@ -267,6 +344,7 @@ export const userRoutes = new Hono<AppEnv>()
 
   .post("/:id/remind", async (c) => {
     const target = await mustExist(c.req.param("id"));
+    if (target.deactivatedAt) throw conflict("L'utente è disattivato");
     const week = await weekScheduleOf(target.id);
     const missing = await missingDaysFor(target.id, week);
 

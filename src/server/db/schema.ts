@@ -38,6 +38,15 @@ export const users = pgTable(
     canWorkSunday: bool("can_work_sunday"),
     has104: bool("has_104"),
     hasPaternity: bool("has_paternity"),
+    /**
+     * Set instead of deleting the row.
+     *
+     * A deleted user takes their timesheets with them — the foreign keys below
+     * cascade — and a timesheet is a payroll record that Italian law expects to
+     * still exist years later. Deactivating stops the account working and frees
+     * the seat while leaving every hour ever recorded exactly where it is.
+     */
+    deactivatedAt: timestamp("deactivated_at", { withTimezone: true }),
     createdAt: now(),
     updatedAt: timestamp("updated_at", { withTimezone: true }),
   },

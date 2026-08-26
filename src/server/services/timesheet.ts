@@ -3,7 +3,7 @@
  * be answered before they can decide anything.
  */
 import { randomUUID } from "node:crypto";
-import { and, between, eq, gt, gte, inArray, lte, sql } from "drizzle-orm";
+import { and, between, eq, gt, gte, inArray, isNull, lte, sql } from "drizzle-orm";
 import { addDays, eachDay, monthRange, todayIn, toYearMonth, type LocalDate } from "@core/date";
 import { daysToMaterialize, EMPLOYEE_EDIT_WINDOW_DAYS } from "@core/policy";
 import type { WeekSchedule } from "@core/schedule";
@@ -257,10 +257,17 @@ export async function missingDaysFor(userId: string, week: WeekSchedule, lookbac
   };
 }
 
-/** The employees of the organization in context — never of all of them. */
+/** The active employees of the organization in context — never of all of them. */
 export async function employeesWithEmail() {
   return db
     .select({ id: users.id, name: users.name, email: users.email })
     .from(users)
-    .where(and(eq(users.organizationId, currentOrgId()), inArray(users.role, ["EMPLOYEE"])));
+    .where(
+      and(
+        eq(users.organizationId, currentOrgId()),
+        inArray(users.role, ["EMPLOYEE"]),
+        // Nobody should be nagged about a timesheet they can no longer open.
+        isNull(users.deactivatedAt),
+      ),
+    );
 }

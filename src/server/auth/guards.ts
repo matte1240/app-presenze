@@ -11,7 +11,7 @@
  * rest of the request inside it, so a handler cannot be reached with the wrong
  * organization current, or with none.
  */
-import { and, eq } from "drizzle-orm";
+import { and, eq, isNull } from "drizzle-orm";
 import { getCookie } from "hono/cookie";
 import { createMiddleware } from "hono/factory";
 import { accessLevel } from "@core/plans";
@@ -40,10 +40,18 @@ export const loadSession = createMiddleware<AppEnv>(async (c, next) => {
       const [user] = await db
         .select()
         .from(users)
-        .where(and(eq(users.organizationId, found.organizationId), eq(users.id, found.userId)))
+        .where(
+          and(
+            eq(users.organizationId, found.organizationId),
+            eq(users.id, found.userId),
+            // Deactivation revokes the sessions it knows about; this catches
+            // any it did not, so the account stops working either way.
+            isNull(users.deactivatedAt),
+          ),
+        )
         .limit(1);
 
-      // Deleted mid-session: the cookie is stale, not privileged.
+      // Deleted or deactivated mid-session: the cookie is stale, not privileged.
       if (!user) {
         c.set("session", null);
         return next();

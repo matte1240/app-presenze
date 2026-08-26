@@ -67,6 +67,8 @@ async function targetUser(userId: string): Promise<UserRow> {
     .where(and(eq(users.organizationId, currentOrgId()), eq(users.id, userId)))
     .limit(1);
   if (!user) throw notFound("Utente inesistente");
+  // Their past stays readable; their timesheet stops accepting new days.
+  if (user.deactivatedAt) throw forbidden("L'utente è disattivato");
   return user;
 }
 

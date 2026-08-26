@@ -78,7 +78,9 @@ async function accountsFor(email: string) {
     .select({ user: users, organization: organizations })
     .from(users)
     .innerJoin(organizations, eq(organizations.id, users.organizationId))
-    .where(eq(users.email, email.toLowerCase()));
+    // A deactivated account is not an account: it cannot be signed into, and
+    // it cannot be resolved for a password reset either.
+    .where(and(eq(users.email, email.toLowerCase()), isNull(users.deactivatedAt)));
   return rows;
 }
 

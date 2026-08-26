@@ -3,7 +3,7 @@
  * self-service signup and the back-office need.
  */
 import { randomUUID } from "node:crypto";
-import { and, count, eq, ne } from "drizzle-orm";
+import { and, count, eq, isNull, ne } from "drizzle-orm";
 import type { PlanId } from "@core/plans";
 import { hashPassword } from "../auth/password";
 import { db, platformDb } from "../db/client";
@@ -101,12 +101,16 @@ export async function createOrganization(input: NewOrganization): Promise<Create
   return { organization: organization!, adminId };
 }
 
-/** How many seats the plan considers used. Administrators count too. */
+/**
+ * How many seats the plan considers used. Administrators count too;
+ * deactivated people do not, which is what makes deactivation a real way back
+ * under a plan's limit rather than a cosmetic one.
+ */
 export async function seatsUsed(): Promise<number> {
   const [row] = await db
     .select({ total: count() })
     .from(users)
-    .where(eq(users.organizationId, currentOrgId()));
+    .where(and(eq(users.organizationId, currentOrgId()), isNull(users.deactivatedAt)));
   return Number(row?.total ?? 0);
 }
 

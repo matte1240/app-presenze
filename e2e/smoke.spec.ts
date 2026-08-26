@@ -62,6 +62,35 @@ test.describe("l'applicazione", () => {
   });
 });
 
+test.describe("gli utenti", () => {
+  test("disattivare qualcuno lo toglie dall'elenco senza cancellarlo", async ({ page }) => {
+    await signUp(page);
+    const suffix = unique();
+
+    await page.getByRole("link", { name: "Utenti", exact: true }).first().click();
+    await page.getByRole("button", { name: "Nuovo utente" }).click();
+    // The asterisk is part of the rendered label for a required field.
+    await page.getByLabel("Nome*").fill("Dipendente Uscente");
+    await page.getByLabel("Email*").fill(`uscente-${suffix}@example.com`);
+    // A password rather than an invitation: the invitation path depends on SMTP
+    // being configured, and this test is about deactivation, not about mail.
+    await page.getByLabel(/^Password/).fill("Password1!");
+    await page.getByRole("button", { name: "Salva" }).click();
+
+    const row = page.getByRole("row").filter({ hasText: "Dipendente Uscente" });
+    await expect(row).toBeVisible();
+
+    await row.getByRole("button", { name: "Disattiva" }).click();
+    await page.getByRole("dialog").getByRole("button", { name: "Disattiva" }).click();
+
+    // Out of the way, but recoverable — and the checkbox proves they are still
+    // there rather than gone.
+    await expect(page.getByRole("row").filter({ hasText: "Dipendente Uscente" })).toHaveCount(0);
+    await page.getByLabel(/Mostra 1 disattivato/).check();
+    await expect(page.getByRole("row").filter({ hasText: "Dipendente Uscente" })).toBeVisible();
+  });
+});
+
 test.describe("il back-office", () => {
   test("dopo l'accesso mostra l'elenco delle organizzazioni, non di nuovo l'accesso", async ({ page }) => {
     await page.goto("/piattaforma");

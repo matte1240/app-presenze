@@ -238,9 +238,25 @@ export const t = {
     created: "Utente creato.",
     invited: "Utente creato: gli è stato inviato un link per impostare la password.",
     updated: "Utente aggiornato.",
-    removed: "Utente eliminato.",
-    deleteConfirm: (name: string) =>
-      `Eliminare ${name}? Verranno rimossi anche il cartellino e le richieste.`,
+    removed: "Utente eliminato definitivamente.",
+
+    inactive: "Disattivato",
+    showInactive: (n: number) =>
+      n === 1 ? "Mostra 1 disattivato" : `Mostra ${n} disattivati`,
+    deactivate: "Disattiva",
+    deactivated: "Utente disattivato.",
+    deactivateConfirm: (name: string) =>
+      `Disattivare ${name}? Non potrà più accedere e libererà un posto del piano, ` +
+      "ma il suo cartellino resta e continua a comparire nei report.",
+    reactivate: "Riattiva",
+    reactivated: "Utente riattivato.",
+    deleteForever: "Elimina definitivamente",
+    // Nothing generic here on purpose: the numbers come from the server before
+    // the dialog opens, so the warning says what is actually about to be lost.
+    deleteConfirm: (name: string, entries: number, requests: number) =>
+      `Eliminare definitivamente ${name}? Spariranno ${entries} ` +
+      `${entries === 1 ? "giornata" : "giornate"} di cartellino e ${requests} ` +
+      `${requests === 1 ? "richiesta" : "richieste"}. L'operazione non è reversibile.`,
     resetPassword: "Reimposta password",
     resetByEmail: "Invia link via email",
     resetManually: "Imposta una password",
