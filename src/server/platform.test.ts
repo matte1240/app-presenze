@@ -180,6 +180,69 @@ suite("back-office", () => {
     expect(audit.entries.some((e: { action: string }) => e.action === "organization.impersonated")).toBe(true);
   });
 
+  /**
+   * A temporary password is only temporary if it stops working as a permanent
+   * one, so an account created by somebody else can reach exactly two things
+   * until its owner picks their own.
+   */
+  it("blocca un amministratore finché non sceglie la propria password", async () => {
+    const suffix = randomUUID().slice(0, 8);
+    const email = `secondo-${suffix}@example.com`;
+
+    expect(
+      (
+        await asPlatform("/admins", {
+          method: "POST",
+          body: JSON.stringify({ name: "Secondo", email, temporaryPassword: "Temporanea1!" }),
+        })
+      ).status,
+    ).toBe(201);
+
+    const login = await app.request("/api/platform/login", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ email, password: "Temporanea1!" }),
+    });
+    expect(login.status).toBe(200);
+    const cookie = login.headers.get("set-cookie")!.split(";")[0]!;
+
+    const as = (path: string, init: RequestInit = {}) =>
+      app.request(`/api/platform${path}`, {
+        ...init,
+        headers: { cookie, "content-type": "application/json", ...init.headers },
+      });
+
+    // Locked out of the work, but able to see who it is and fix the password.
+    expect((await as("/organizations")).status).toBe(403);
+    const me = await (await as("/me")).json();
+    expect(me.admin.mustChangePassword).toBe(true);
+
+    expect(
+      (
+        await as("/admins/me/password", {
+          method: "POST",
+          body: JSON.stringify({ currentPassword: "Temporanea1!", newPassword: "Definitiva1!" }),
+        })
+      ).status,
+    ).toBe(200);
+
+    // And now the whole back office opens.
+    expect((await as("/organizations")).status).toBe(200);
+  });
+
+  it("non lascia la piattaforma senza amministratori", async () => {
+    const me = await (await asPlatform("/me")).json();
+    // Never yourself, whatever the count.
+    expect((await asPlatform(`/admins/${me.admin.id}`, { method: "DELETE" })).status).toBe(403);
+  });
+
+  it("mostra la scheda di un'organizzazione con le sue persone", async () => {
+    const detail = await (await asPlatform(`/organizations/${organizationId}`)).json();
+    expect(detail.organization.id).toBe(organizationId);
+    expect(detail.users.length).toBeGreaterThanOrEqual(1);
+    expect(detail.users.every((u: { email: string }) => u.email)).toBe(true);
+  });
+
   it("esporta i dati di una singola organizzazione", async () => {
     const response = await asPlatform(`/organizations/${organizationId}/export`);
     expect(response.status).toBe(200);
@@ -187,5 +250,15 @@ suite("back-office", () => {
     const body = await response.json();
     expect(body.organization.id).toBe(organizationId);
     expect(JSON.stringify(body)).not.toContain("passwordHash");
+  });
+
+  it("chiude un'organizzazione dicendo prima quanto porta via", async () => {
+    const preview = await (
+      await asPlatform(`/organizations/${organizationId}/deletion-preview`)
+    ).json();
+    expect(preview.users).toBeGreaterThanOrEqual(1);
+
+    expect((await asPlatform(`/organizations/${organizationId}`, { method: "DELETE" })).status).toBe(200);
+    expect((await asPlatform(`/organizations/${organizationId}`)).status).toBe(404);
   });
 });

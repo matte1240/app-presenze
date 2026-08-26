@@ -1,7 +1,7 @@
 import { Link } from "@tanstack/react-router";
 import type { CurrentOrganization } from "../../api/session";
 import { t } from "../../i18n/it";
-import { Alert, Button } from "../../ui/primitives";
+import { Alert, buttonClasses } from "../../ui/primitives";
 
 /**
  * One line at the top of every screen when the subscription needs attention,
@@ -46,9 +46,12 @@ export function SubscriptionBanner({
     <Alert tone={notice.tone} className="mb-4 flex flex-wrap items-center justify-between gap-3">
       <span>{notice.message}</span>
       {isAdmin ? (
-        <Button asChild size="sm" variant={notice.tone === "danger" ? "primary" : "outline"}>
-          <Link to="/abbonamento">{t.billing.manage}</Link>
-        </Button>
+        <Link
+          to="/abbonamento"
+          className={buttonClasses(notice.tone === "danger" ? "primary" : "outline", "sm")}
+        >
+          {t.billing.manage}
+        </Link>
       ) : null}
     </Alert>
   );

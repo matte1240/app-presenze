@@ -121,5 +121,26 @@ test.describe("il back-office", () => {
 
     await expect(page).toHaveURL(/\/calendario$/);
     await expect(page.getByText(/dal back-office/)).toBeVisible();
+
+    // And back out again without signing out of the back office.
+    await page.getByRole("button", { name: "Torna al back-office" }).click();
+    await expect(page.getByRole("heading", { name: "Organizzazioni" })).toBeVisible();
+  });
+
+  test("apre la scheda di un'organizzazione e la pagina amministratori", async ({ page, context }) => {
+    const { company } = await signUp(page);
+    await context.clearCookies();
+
+    await page.goto("/piattaforma");
+    await page.getByLabel("Email").fill(PLATFORM.email);
+    await page.getByLabel("Password").fill(PLATFORM.password);
+    await page.getByRole("button", { name: "Accedi" }).click();
+
+    await page.getByRole("row").filter({ hasText: company }).getByRole("link").click();
+    await expect(page.getByRole("heading", { name: company })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Utenti dell'organizzazione" })).toBeVisible();
+
+    await page.getByRole("link", { name: "Amministratori" }).click();
+    await expect(page.getByText("Chi può entrare in questo back-office.")).toBeVisible();
   });
 });

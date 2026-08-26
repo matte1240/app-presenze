@@ -10,14 +10,15 @@
  * policies — that is the point of it, and the reason it is the only router that
  * does.
  */
+import { randomUUID } from "node:crypto";
 import { count, desc, eq, sql } from "drizzle-orm";
 import { Hono } from "hono";
 import { deleteCookie, getCookie, setCookie } from "hono/cookie";
 import { createMiddleware } from "hono/factory";
 import { z } from "zod";
-import { emailSchema, nameSchema, organizationNameSchema } from "@core/contracts";
+import { emailSchema, nameSchema, organizationNameSchema, passwordSchema } from "@core/contracts";
 import { isPlanId, ORG_STATUSES, PLAN_IDS, PLANS } from "@core/plans";
-import { verifyPassword } from "../auth/password";
+import { hashPassword, verifyPassword } from "../auth/password";
 import {
   createPlatformSession,
   PLATFORM_ABSOLUTE_TIMEOUT_MS,
@@ -25,7 +26,12 @@ import {
   resolvePlatformSession,
   revokePlatformSession,
 } from "../auth/platform";
-import { createSession, revokeOrganizationSessions } from "../auth/session";
+import {
+  createSession,
+  revokeOrganizationSessions,
+  revokeSession,
+  SESSION_COOKIE,
+} from "../auth/session";
 import { platformDb } from "../db/client";
 import {
   organizations,
@@ -33,11 +39,11 @@ import {
   subscriptions,
   type PlatformAdminRow,
 } from "../db/platform-schema";
-import { users } from "../db/schema";
+import { timeEntries, users } from "../db/schema";
 import { runInTenant } from "../db/tenant";
 import { isProduction } from "../env";
 import type { AppEnv } from "../http/app-env";
-import { conflict, notFound, unauthenticated } from "../http/errors";
+import { conflict, forbidden, notFound, unauthenticated } from "../http/errors";
 import { rateLimit } from "../http/rate-limit";
 import { validate } from "../http/validate";
 import { record, recentAudit } from "../services/audit";
@@ -48,9 +54,23 @@ import { issueResetToken } from "./auth";
 
 const INVITE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 
+/**
+ * While `mustChangePassword` is set, these are the only two things the account
+ * can do: see who it is, and pick its own password.
+ */
+const ALLOWED_WHILE_LOCKED = new Set(["/api/platform/me", "/api/platform/admins/me/password"]);
+
 const requirePlatformAdmin = createMiddleware<AppEnv>(async (c, next) => {
   const admin = await resolvePlatformSession(getCookie(c, PLATFORM_COOKIE));
   if (!admin) throw unauthenticated();
+
+  // A password somebody else chose gets an account far enough to replace it and
+  // no further; otherwise a temporary password is simply a permanent one that
+  // two people know.
+  if (admin.mustChangePassword && !ALLOWED_WHILE_LOCKED.has(c.req.path)) {
+    throw forbidden("Devi prima scegliere una nuova password");
+  }
+
   c.set("platformAdmin", admin);
   await next();
 });
@@ -69,6 +89,18 @@ const createOrganizationSchema = z.object({
   adminEmail: emailSchema,
   plan: z.string().refine((v): boolean => isPlanId(v), "Piano inesistente").optional(),
   trialDays: z.number().int().min(0).max(365).optional(),
+});
+
+const createAdminSchema = z.object({
+  name: nameSchema,
+  email: emailSchema,
+  /** Temporary by construction: its owner is made to replace it at first use. */
+  temporaryPassword: passwordSchema,
+});
+
+const changeOwnPasswordSchema = z.object({
+  currentPassword: z.string().min(1),
+  newPassword: passwordSchema,
 });
 
 const updateOrganizationSchema = z.object({
@@ -126,9 +158,127 @@ export const platformRoutes = new Hono<AppEnv>()
 
   .use("*", requirePlatformAdmin)
 
-  .get("/me", (c) => {
+  .get("/me", async (c) => {
+    // Not `adminOf`: this route is reachable while locked, and the guard does
+    // not populate the context in that case.
+    const admin = await resolvePlatformSession(getCookie(c, PLATFORM_COOKIE));
+    if (!admin) throw unauthenticated();
+    return c.json({
+      admin: {
+        id: admin.id,
+        name: admin.name,
+        email: admin.email,
+        mustChangePassword: admin.mustChangePassword,
+      },
+    });
+  })
+
+  // ── Administrators ──────────────────────────────────────────────────────
+
+  .get("/admins", async (c) => {
+    const rows = await platformDb
+      .select({
+        id: platformAdmins.id,
+        name: platformAdmins.name,
+        email: platformAdmins.email,
+        mustChangePassword: platformAdmins.mustChangePassword,
+        createdAt: platformAdmins.createdAt,
+      })
+      .from(platformAdmins)
+      .orderBy(platformAdmins.createdAt);
+
+    return c.json({
+      admins: rows.map((row) => ({ ...row, createdAt: row.createdAt.toISOString() })),
+      me: adminOf(c).id,
+    });
+  })
+
+  .post("/admins", validate("json", createAdminSchema), async (c) => {
     const admin = adminOf(c);
-    return c.json({ admin: { id: admin.id, name: admin.name, email: admin.email } });
+    const input = c.req.valid("json");
+    const email = input.email.toLowerCase();
+
+    const [clash] = await platformDb
+      .select({ id: platformAdmins.id })
+      .from(platformAdmins)
+      .where(eq(platformAdmins.email, email))
+      .limit(1);
+    if (clash) throw conflict("Esiste già un amministratore con questa email");
+
+    const [created] = await platformDb
+      .insert(platformAdmins)
+      .values({
+        id: randomUUID(),
+        name: input.name,
+        email,
+        passwordHash: await hashPassword(input.temporaryPassword),
+        mustChangePassword: true,
+      })
+      .returning({ id: platformAdmins.id });
+
+    await record({
+      organizationId: null,
+      actorType: "PLATFORM_ADMIN",
+      actorId: admin.id,
+      actorLabel: admin.email,
+      action: "platform_admin.created",
+      detail: { email },
+    });
+
+    return c.json({ admin: { id: created!.id } }, 201);
+  })
+
+  .post("/admins/me/password", validate("json", changeOwnPasswordSchema), async (c) => {
+    // Reachable while locked, so the admin is resolved directly again.
+    const admin = await resolvePlatformSession(getCookie(c, PLATFORM_COOKIE));
+    if (!admin) throw unauthenticated();
+
+    const { currentPassword, newPassword } = c.req.valid("json");
+    if (!(await verifyPassword(currentPassword, admin.passwordHash))) {
+      throw unauthenticated("La password attuale non è corretta");
+    }
+    if (await verifyPassword(newPassword, admin.passwordHash)) {
+      throw conflict("La nuova password deve essere diversa da quella attuale");
+    }
+
+    await platformDb
+      .update(platformAdmins)
+      .set({
+        passwordHash: await hashPassword(newPassword),
+        mustChangePassword: false,
+        updatedAt: new Date(),
+      })
+      .where(eq(platformAdmins.id, admin.id));
+
+    return c.json({ ok: true });
+  })
+
+  .delete("/admins/:id", async (c) => {
+    const admin = adminOf(c);
+    const id = c.req.param("id");
+    if (id === admin.id) throw forbidden("Non puoi eliminare il tuo stesso account");
+
+    // Never the last one: an installation with no back-office account has no
+    // way back in short of editing the database by hand.
+    const [remaining] = await platformDb.select({ total: count() }).from(platformAdmins);
+    if (Number(remaining?.total ?? 0) <= 1) throw conflict("Deve restare almeno un amministratore");
+
+    const [removed] = await platformDb
+      .delete(platformAdmins)
+      .where(eq(platformAdmins.id, id))
+      .returning({ email: platformAdmins.email });
+    if (!removed) throw notFound("Amministratore inesistente");
+
+    await record({
+      organizationId: null,
+      actorType: "PLATFORM_ADMIN",
+      actorId: admin.id,
+      actorLabel: admin.email,
+      action: "platform_admin.deleted",
+      detail: { email: removed.email },
+    });
+
+    return c.json({ ok: true });
   })
 
   .get("/organizations", async (c) => {
@@ -293,6 +443,124 @@ export const platformRoutes = new Hono<AppEnv>()
       path: "/",
     });
     return c.json({ ok: true, as: { name: target.name, email: target.email } });
+  })
+
+  /** Everything about one customer, in one place instead of a table row. */
+  .get("/organizations/:id", async (c) => {
+    const organization = await mustExist(c.req.param("id"));
+
+    const [people, subscription, audit] = await Promise.all([
+      platformDb
+        .select({
+          id: users.id,
+          name: users.name,
+          email: users.email,
+          role: users.role,
+          deactivatedAt: users.deactivatedAt,
+          createdAt: users.createdAt,
+        })
+        .from(users)
+        .where(eq(users.organizationId, organization.id))
+        .orderBy(users.name),
+      platformDb
+        .select()
+        .from(subscriptions)
+        .where(eq(subscriptions.organizationId, organization.id))
+        .limit(1),
+      recentAudit(30, organization.id),
+    ]);
+
+    return c.json({
+      organization: {
+        id: organization.id,
+        name: organization.name,
+        slug: organization.slug,
+        status: organization.status,
+        plan: organization.plan,
+        planName: PLANS[organization.plan].name,
+        seatLimit: PLANS[organization.plan].maxEmployees,
+        seatsUsed: people.filter((p) => !p.deactivatedAt).length,
+        trialEndsAt: organization.trialEndsAt?.toISOString() ?? null,
+        pastDueSince: organization.pastDueSince?.toISOString() ?? null,
+        timezone: organization.timezone,
+        holidayPatronDays: organization.holidayPatronDays,
+        createdAt: organization.createdAt.toISOString(),
+      },
+      users: people.map((p) => ({
+        ...p,
+        deactivatedAt: p.deactivatedAt?.toISOString() ?? null,
+        createdAt: p.createdAt.toISOString(),
+      })),
+      subscription: subscription[0]
+        ? {
+            stripeCustomerId: subscription[0].stripeCustomerId,
+            stripeStatus: subscription[0].stripeStatus,
+            currentPeriodEnd: subscription[0].currentPeriodEnd?.toISOString() ?? null,
+            cancelAtPeriodEnd: subscription[0].cancelAtPeriodEnd === "true",
+          }
+        : null,
+      audit: audit.map((a) => ({ ...a, createdAt: a.createdAt.toISOString() })),
+    });
+  })
+
+  /**
+   * What closing an account would destroy, so the confirmation can name it
+   * rather than gesture at it.
+   */
+  .get("/organizations/:id/deletion-preview", async (c) => {
+    const organization = await mustExist(c.req.param("id"));
+
+    const [people] = await platformDb
+      .select({ total: count() })
+      .from(users)
+      .where(eq(users.organizationId, organization.id));
+    const [entries] = await platformDb
+      .select({ total: count() })
+      .from(timeEntries)
+      .where(eq(timeEntries.organizationId, organization.id));
+
+    return c.json({
+      users: Number(people?.total ?? 0),
+      timeEntries: Number(entries?.total ?? 0),
+    });
+  })
+
+  /**
+   * Closing an account for good — a request to be forgotten, or a customer who
+   * asked to be removed. Everything cascades from `organizations`, so this one
+   * statement takes the people, the timesheets and the requests with it.
+   */
+  .delete("/organizations/:id", async (c) => {
+    const admin = adminOf(c);
+    const organization = await mustExist(c.req.param("id"));
+
+    await revokeOrganizationSessions(organization.id);
+    await platformDb.delete(organizations).where(eq(organizations.id, organization.id));
+
+    // Written after the fact and with the organization id nulled by the
+    // cascade, so the label is what survives to say who did what.
+    await record({
+      organizationId: null,
+      actorType: "PLATFORM_ADMIN",
+      actorId: admin.id,
+      actorLabel: admin.email,
+      action: "organization.deleted",
+      detail: { name: organization.name, slug: organization.slug },
+    });
+
+    return c.json({ ok: true });
+  })
+
+  /**
+   * Leaving a customer's account without signing out of the back office.
+   *
+   * The two cookies coexist — the platform one is scoped to `/api/platform` —
+   * so this only has to end the tenant session and clear its cookie.
+   */
+  .post("/stop-impersonation", async (c) => {
+    await revokeSession(getCookie(c, SESSION_COOKIE));
+    deleteCookie(c, SESSION_COOKIE, { path: "/" });
+    return c.json({ ok: true });
   })
 
   .get("/organizations/:id/export", async (c) => {

@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import { useState, type ComponentType } from "react";
 import { sessionQuery, useLogout, type CurrentUser } from "../api/session";
+import { stopImpersonation } from "../api/platform";
 import { SubscriptionBanner } from "../features/billing/status-banner";
 import { t } from "../i18n/it";
 import { cn } from "../ui/cn";
@@ -101,9 +102,19 @@ function AppShell() {
         {/* Not dismissible, and above everything: somebody from support being
             inside this account is not a detail to tuck away. */}
         {impersonated ? (
-          <div className="flex items-center gap-2 bg-warning px-4 py-2 text-label text-warning-foreground">
+          <div className="flex flex-wrap items-center gap-2 bg-warning px-4 py-2 text-label text-warning-foreground">
             <ShieldAlert className="size-4 shrink-0" aria-hidden />
-            {t.platform.impersonationBanner}
+            <span className="flex-1">{t.platform.impersonationBanner}</span>
+            <button
+              type="button"
+              className="underline underline-offset-4"
+              onClick={async () => {
+                await stopImpersonation();
+                window.location.assign("/piattaforma/organizzazioni");
+              }}
+            >
+              {t.platform.exitImpersonation}
+            </button>
           </div>
         ) : null}
 

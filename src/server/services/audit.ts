@@ -15,7 +15,10 @@ export type AuditAction =
   | "organization.created"
   | "organization.updated"
   | "organization.impersonated"
-  | "organization.exported";
+  | "organization.exported"
+  | "organization.deleted"
+  | "platform_admin.created"
+  | "platform_admin.deleted";
 
 export async function record(entry: {
   organizationId: string | null;

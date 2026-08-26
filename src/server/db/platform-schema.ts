@@ -7,7 +7,7 @@
  * off by row-level security; everything here spans companies by definition and
  * must not be.
  */
-import { index, jsonb, pgTable, text, timestamp, unique } from "drizzle-orm/pg-core";
+import { boolean, index, jsonb, pgTable, text, timestamp, unique } from "drizzle-orm/pg-core";
 import { ORG_STATUSES, PLAN_IDS } from "@core/plans";
 
 const id = () => text("id").primaryKey();
@@ -80,6 +80,12 @@ export const platformAdmins = pgTable("platform_admins", {
   email: text("email").notNull().unique(),
   name: text("name").notNull(),
   passwordHash: text("password_hash").notNull(),
+  /**
+   * Set on an account somebody else created, and cleared when its owner picks
+   * their own password. An account that can reach every customer should not
+   * keep running on a password a second person knows.
+   */
+  mustChangePassword: boolean("must_change_password").notNull().default(false),
   createdAt: now(),
   updatedAt: timestamp("updated_at", { withTimezone: true }),
 });

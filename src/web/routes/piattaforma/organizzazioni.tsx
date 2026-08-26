@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { createFileRoute, redirect } from "@tanstack/react-router";
+import { createFileRoute, Link, redirect } from "@tanstack/react-router";
 import { Download, LogIn, Plus } from "lucide-react";
 import { useState } from "react";
 import { useForm } from "react-hook-form";
@@ -60,6 +60,15 @@ const dateIt = (iso: string | null) =>
 function OrganizationsPage() {
   const { data, isLoading } = useQuery(platformOrganizationsQuery);
   const [createOpen, setCreateOpen] = useState(false);
+  const [search, setSearch] = useState("");
+  const [status, setStatus] = useState<OrgStatus | "">("");
+
+  const all = data?.organizations ?? [];
+  const visible = all.filter(
+    (o) =>
+      (status === "" || o.status === status) &&
+      (search.trim() === "" || `${o.name} ${o.slug}`.toLowerCase().includes(search.toLowerCase())),
+  );
 
   return (
     <div className="mx-auto w-full max-w-[88rem] space-y-4 p-4 sm:px-6 sm:py-5">
@@ -74,8 +83,52 @@ function OrganizationsPage() {
         </Button>
       </header>
 
+      {all.length > 0 ? (
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <Counter label={t.platform.totalOrganizations} value={all.length} />
+          <Counter
+            label={t.billing.statuses.ACTIVE}
+            value={all.filter((o) => o.status === "ACTIVE").length}
+          />
+          <Counter
+            label={t.billing.statuses.TRIAL}
+            value={all.filter((o) => o.status === "TRIAL").length}
+          />
+          <Counter
+            label={t.platform.totalSeats}
+            value={all.reduce((sum, o) => sum + o.seatsUsed, 0)}
+          />
+        </div>
+      ) : null}
+
       <Card>
-        <CardHeader title={t.platform.all} />
+        <CardHeader
+          title={t.platform.all}
+          actions={
+            <div className="flex flex-wrap gap-2">
+              <Input
+                type="search"
+                placeholder={t.app.search}
+                aria-label={t.app.search}
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+                className="h-8 w-44"
+              />
+              <NativeSelect
+                aria-label={t.billing.status}
+                value={status}
+                onChange={(event) => setStatus(event.target.value as OrgStatus | "")}
+              >
+                <option value="">{t.platform.anyStatus}</option>
+                {(Object.keys(STATUS_TONE) as OrgStatus[]).map((s) => (
+                  <option key={s} value={s}>
+                    {t.billing.statuses[s]}
+                  </option>
+                ))}
+              </NativeSelect>
+            </div>
+          }
+        />
         {isLoading || !data ? (
           <div className="p-5">
             <SkeletonRows rows={4} />
@@ -94,7 +147,7 @@ function OrganizationsPage() {
                 </TR>
               </THead>
               <TBody>
-                {data.organizations.map((organization) => (
+                {visible.map((organization) => (
                   <OrganizationRow key={organization.id} organization={organization} />
                 ))}
               </TBody>
@@ -126,8 +179,14 @@ function OrganizationRow({ organization }: { organization: PlatformOrganization 
   return (
     <TR>
       <TD>
-        <div className="font-medium">{organization.name}</div>
-        <div className="font-mono text-[12px] text-muted-foreground">{organization.slug}</div>
+        <Link
+          to="/piattaforma/organizzazione/$id"
+          params={{ id: organization.id }}
+          className="block hover:underline"
+        >
+          <span className="block font-medium">{organization.name}</span>
+          <span className="block font-mono text-[12px] text-muted-foreground">{organization.slug}</span>
+        </Link>
       </TD>
       <TD>
         {/* Editable in place: suspending or reinstating an account is the
@@ -273,5 +332,14 @@ function CreateDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (op
         <Alert tone="info">{t.platform.inviteNotice}</Alert>
       </div>
     </Dialog>
+  );
+}
+
+function Counter({ label, value }: { label: string; value: number }) {
+  return (
+    <div className="rounded-md border border-border bg-surface px-4 py-3">
+      <p className="text-label text-muted-foreground">{label}</p>
+      <p className="mt-0.5 text-display font-semibold tabular-nums">{value}</p>
+    </div>
   );
 }

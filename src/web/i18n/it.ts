@@ -85,6 +85,40 @@ export const t = {
     when: "Quando",
     who: "Chi",
     what: "Cosa",
+    admins: "Amministratori",
+    adminsHint: "Chi può entrare in questo back-office.",
+    newAdmin: "Nuovo amministratore",
+    newAdminHint:
+      "Riceve una password temporanea che dovrà sostituire al primo accesso. Consegnagliela di persona, non via email.",
+    temporaryPassword: "Password temporanea",
+    temporaryPasswordHint: "Vale solo per il primo accesso.",
+    adminCreated: "Amministratore creato.",
+    adminDeleted: "Amministratore eliminato.",
+    deleteAdminConfirm: (email: string) => `Eliminare l'accesso di ${email} al back-office?`,
+    pendingPassword: "Password da scegliere",
+    active: "Attivo",
+    myPassword: "La mia password",
+    passwordChanged: "Password aggiornata.",
+    mustChangeNotice:
+      "La password attuale è stata scelta da qualcun altro. Sostituiscila per usare il back-office.",
+
+    totalOrganizations: "Organizzazioni",
+    totalSeats: "Persone totali",
+    anyStatus: "Tutti gli stati",
+    backToList: "Torna all'elenco",
+    summary: "Riepilogo",
+    people: "Utenti dell'organizzazione",
+    customer: "Cliente Stripe",
+    since: "Cliente dal",
+    closeAccount: "Chiudi l'account",
+    closeAccountConfirm: (name: string, users: number, entries: number) =>
+      `Chiudere definitivamente ${name}? Spariranno ${users} ` +
+      `${users === 1 ? "persona" : "persone"} e ${entries} ` +
+      `${entries === 1 ? "giornata" : "giornate"} di cartellino. ` +
+      "Scarica prima l'esportazione: l'operazione non è reversibile.",
+    accountClosed: "Organizzazione chiusa.",
+    exitImpersonation: "Torna al back-office",
+
     impersonationBanner:
       "Stai operando dentro questa organizzazione dal back-office. Ogni azione è registrata.",
   },

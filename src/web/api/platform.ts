@@ -55,11 +55,21 @@ async function platform<T>(path: string, init: RequestInit = {}): Promise<T> {
   return (await response.json()) as T;
 }
 
+export interface PlatformAdmin {
+  id: string;
+  name: string;
+  email: string;
+  mustChangePassword: boolean;
+  createdAt: string;
+}
+
 export const platformMeQuery = queryOptions({
   queryKey: ["platform", "me"],
   queryFn: async () => {
     try {
-      return await platform<{ admin: { id: string; name: string; email: string } }>("/me");
+      return await platform<{
+        admin: { id: string; name: string; email: string; mustChangePassword: boolean };
+      }>("/me");
     } catch (error) {
       if (error instanceof ApiError && error.isUnauthenticated) return null;
       throw error;
@@ -67,6 +77,83 @@ export const platformMeQuery = queryOptions({
   },
   retry: false,
 });
+
+export const platformAdminsQuery = queryOptions({
+  queryKey: ["platform", "admins"],
+  queryFn: () => platform<{ admins: PlatformAdmin[]; me: string }>("/admins"),
+});
+
+export function useCreateAdmin() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (body: { name: string; email: string; temporaryPassword: string }) =>
+      platform<{ admin: { id: string } }>("/admins", { method: "POST", body: JSON.stringify(body) }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["platform"] }),
+  });
+}
+
+export function useDeleteAdmin() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => platform<{ ok: true }>(`/admins/${id}`, { method: "DELETE" }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["platform"] }),
+  });
+}
+
+export function useChangeOwnPassword() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (body: { currentPassword: string; newPassword: string }) =>
+      platform<{ ok: true }>("/admins/me/password", { method: "POST", body: JSON.stringify(body) }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["platform"] }),
+  });
+}
+
+export interface OrganizationDetail {
+  organization: PlatformOrganization & {
+    pastDueSince: string | null;
+    timezone: string;
+    holidayPatronDays: string;
+  };
+  users: Array<{
+    id: string;
+    name: string;
+    email: string;
+    role: "ADMIN" | "EMPLOYEE";
+    deactivatedAt: string | null;
+    createdAt: string;
+  }>;
+  subscription: {
+    stripeCustomerId: string | null;
+    stripeStatus: string | null;
+    currentPeriodEnd: string | null;
+    cancelAtPeriodEnd: boolean;
+  } | null;
+  audit: AuditEntry[];
+}
+
+export const organizationDetailQuery = (id: string) =>
+  queryOptions({
+    queryKey: ["platform", "organization", id],
+    queryFn: () => platform<OrganizationDetail>(`/organizations/${id}`),
+  });
+
+export function organizationDeletionPreview(id: string) {
+  return platform<{ users: number; timeEntries: number }>(`/organizations/${id}/deletion-preview`);
+}
+
+export function useDeleteOrganization() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => platform<{ ok: true }>(`/organizations/${id}`, { method: "DELETE" }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["platform"] }),
+  });
+}
+
+/** Leaves a customer's account without signing out of the back office. */
+export function stopImpersonation() {
+  return platform<{ ok: true }>("/stop-impersonation", { method: "POST" });
+}
 
 export const platformOrganizationsQuery = queryOptions({
   queryKey: ["platform", "organizations"],
