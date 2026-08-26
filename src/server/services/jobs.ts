@@ -1,14 +1,36 @@
 /**
- * Scheduled work: the nightly backup and the evening reminder sweep.
+ * Scheduled work.
  *
  * A module-level flag guards against the double registration that a dev-server
- * reload used to cause; with a single process and an embedded database that is
- * the whole of the coordination needed.
+ * reload used to cause. That was enough when the database was a file owned by
+ * one process; with Postgres a second instance would be a second scheduler, so
+ * each job also takes a Postgres advisory lock before doing anything — see
+ * `withJobLock`.
  */
 import cron from "node-cron";
+import { sql } from "../db/client";
 import { env } from "../env";
 
 let started = false;
+
+/**
+ * Advisory locks are held for the life of the session and released when it
+ * ends, so a crashed instance does not wedge the job forever. `try` returns
+ * immediately rather than queueing: a second instance should skip the run, not
+ * perform it late.
+ */
+export async function withJobLock(key: number, run: () => Promise<void>): Promise<boolean> {
+  const [row] = await sql<{ locked: boolean }[]>`SELECT pg_try_advisory_lock(${key}) AS locked`;
+  if (!row?.locked) return false;
+  try {
+    await run();
+    return true;
+  } finally {
+    await sql`SELECT pg_advisory_unlock(${key})`;
+  }
+}
+
+const REMINDER_LOCK = 4_201_001;
 
 export function startScheduledJobs(): void {
   if (started) return;
@@ -17,20 +39,15 @@ export function startScheduledJobs(): void {
   const options = { timezone: env.TZ };
 
   cron.schedule(
-    env.BACKUP_CRON,
-    () => {
-      void import("./backup").then((m) => m.runScheduledBackup()).catch((e) => console.error("Backup pianificato fallito:", e));
-    },
-    options,
-  );
-
-  cron.schedule(
     env.REMINDER_CRON,
     () => {
-      void import("./reminders").then((m) => m.sendMissingTimesheetReminders()).catch((e) => console.error("Promemoria falliti:", e));
+      void withJobLock(REMINDER_LOCK, async () => {
+        const m = await import("./reminders");
+        await m.sendMissingTimesheetReminders();
+      }).catch((e) => console.error("Promemoria falliti:", e));
     },
     options,
   );
 
-  console.info(`Job pianificati: backup "${env.BACKUP_CRON}", promemoria "${env.REMINDER_CRON}" (${env.TZ})`);
+  console.info(`Job pianificati: promemoria "${env.REMINDER_CRON}" (${env.TZ})`);
 }

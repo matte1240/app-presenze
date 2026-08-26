@@ -29,6 +29,8 @@ import { createDefaultSchedules } from "../services/schedules";
 import { sendPasswordResetEmail } from "../services/email";
 
 const RESET_TTL_MS = 60 * 60 * 1000;
+/** Arbitrary but fixed: only the first-administrator path takes it. */
+const SETUP_LOCK = 4_201_002;
 
 const tokenDigest = (token: string) => createHash("sha256").update(token).digest("hex");
 
@@ -62,7 +64,7 @@ export const authRoutes = new Hono<AppEnv>()
   .get("/state", async (c) => {
     const [row] = await db.select({ count: sql<number>`count(*)` }).from(users);
     return c.json({
-      needsSetup: (row?.count ?? 0) === 0,
+      needsSetup: Number(row?.count ?? 0) === 0,
       appName: env.APP_NAME,
       companyName: env.COMPANY_NAME,
     });
@@ -71,24 +73,24 @@ export const authRoutes = new Hono<AppEnv>()
   .post("/setup", validate("json", setupSchema), async (c) => {
     const input = c.req.valid("json");
 
-    // Hashing first keeps the transaction synchronous, which is what makes the
-    // count and the insert atomic: two simultaneous requests cannot both
-    // decide they are the first administrator.
     const passwordHash = await hashPassword(input.password);
     const userId = randomUUID();
 
-    const created = db.transaction((tx) => {
-      const [row] = tx.select({ count: sql<number>`count(*)` }).from(users).all();
-      if ((row?.count ?? 0) > 0) return false;
-      tx.insert(users)
-        .values({
-          id: userId,
-          name: input.name,
-          email: input.email.toLowerCase(),
-          passwordHash,
-          role: "ADMIN",
-        })
-        .run();
+    const created = await db.transaction(async (tx) => {
+      // Under READ COMMITTED two simultaneous requests would both count zero
+      // and both believe they are the first administrator. SQLite's single
+      // writer hid that; Postgres does not, so the race is serialised
+      // explicitly. The lock is released when the transaction ends.
+      await tx.execute(sql`SELECT pg_advisory_xact_lock(${SETUP_LOCK})`);
+      const [row] = await tx.select({ count: sql<number>`count(*)` }).from(users);
+      if (Number(row?.count ?? 0) > 0) return false;
+      await tx.insert(users).values({
+        id: userId,
+        name: input.name,
+        email: input.email.toLowerCase(),
+        passwordHash,
+        role: "ADMIN",
+      });
       return true;
     });
     if (!created) throw forbidden("La configurazione iniziale è già stata completata");

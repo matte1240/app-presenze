@@ -175,24 +175,3 @@ export function sendMissingTimesheetReminder(args: {
     action: { label: "Apri il calendario", href: `${env.APP_URL}/calendario` },
   });
 }
-
-export function sendBackupNotice(to: string, filename: string, sizeBytes: number, attachment?: string) {
-  const t = transport();
-  if (!t) return Promise.resolve(false);
-  return t
-    .sendMail({
-      from: env.MAIL_FROM,
-      to,
-      subject: `Backup del database — ${filename}`,
-      html: render({
-        title: "Backup completato",
-        intro: `Il backup <strong>${escape(filename)}</strong> è stato creato (${(sizeBytes / 1024 / 1024).toFixed(1)} MB).`,
-      }),
-      attachments: attachment ? [{ path: attachment, filename }] : undefined,
-    })
-    .then(() => true)
-    .catch((error: unknown) => {
-      console.error("Invio backup fallito:", error);
-      return false;
-    });
-}

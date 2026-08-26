@@ -1,9 +1,10 @@
 /**
  * Configuration, read once and validated at boot.
  *
- * A missing session secret in production is a hard failure rather than a
- * silent fallback: the alternative is a deployment that looks healthy while
- * signing cookies with a default everybody knows.
+ * `DATABASE_URL` deliberately has no default. Every other value here can fall
+ * back to something harmless, but a connection string that quietly points
+ * somewhere plausible is how an instance ends up serving an empty database and
+ * looking healthy while doing it.
  */
 import { z } from "zod";
 
@@ -13,8 +14,8 @@ const schema = z.object({
   APP_URL: z.string().default("http://localhost:3000"),
   TZ: z.string().default("Europe/Rome"),
 
-  DATABASE_FILE: z.string().default("./data/app.db"),
-  BACKUP_DIR: z.string().default("./backups"),
+  DATABASE_URL: z.string().min(1, "DATABASE_URL è obbligatoria"),
+  DATABASE_POOL_MAX: z.coerce.number().int().min(1).default(10),
 
   APP_NAME: z.string().default("Presenze"),
   COMPANY_NAME: z.string().default(""),
@@ -29,11 +30,7 @@ const schema = z.object({
   SMTP_PASSWORD: z.string().optional(),
   MAIL_FROM: z.string().optional(),
 
-  BACKUP_CRON: z.string().default("0 2 * * *"),
   REMINDER_CRON: z.string().default("0 19 * * *"),
-  BACKUP_RETENTION_DAYS: z.coerce.number().int().min(1).default(30),
-  BACKUP_MIN_COUNT: z.coerce.number().int().min(1).default(7),
-  BACKUP_EMAIL_TO: z.string().optional(),
   ENABLE_CRON: z.stringbool().default(true),
 });
 

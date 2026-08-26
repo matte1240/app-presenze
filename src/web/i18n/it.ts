@@ -191,20 +191,14 @@ export const t = {
 
   maintenance: {
     title: "Manutenzione",
-    subtitle: "Backup e ripristino del database.",
-    backups: "Backup",
-    createBackup: "Crea backup",
-    created: "Backup creato.",
-    download: "Scarica",
-    restore: "Ripristina",
-    restoreTitle: "Ripristina da un backup",
-    restoreWarning:
-      "Il database attuale verrà sostituito. Ne viene salvata comunque una copia di sicurezza prima di procedere.",
-    restoreDone: (copy: string) => `Database ripristinato. Copia precedente salvata come ${copy}.`,
-    chooseFile: "Scegli un file .db",
-    size: "Dimensione",
-    date: "Data",
-    empty: "Nessun backup",
+    subtitle: "I tuoi dati, quando ti servono altrove.",
+    export: "Esportazione dati",
+    exportAction: "Esporta in JSON",
+    exportHint:
+      "Scarica utenti, orari contrattuali, cartellini e richieste in un unico file JSON. Le password non sono incluse.",
+    exportDone: "Esportazione completata.",
+    backupNotice:
+      "Il backup del database è gestito dal server e non richiede nulla da parte tua.",
   },
 
   profile: {

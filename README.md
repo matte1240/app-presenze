@@ -4,8 +4,8 @@ Gestionale di presenze e cartellini per una singola azienda. Il dipendente
 registra le ore giorno per giorno, l'amministratore approva ferie e permessi ed
 esporta il riepilogo mensile per le paghe.
 
-Un solo processo Node serve sia l'API sia l'interfaccia, su un database SQLite
-incorporato. Non serve altro.
+Un solo processo Node serve sia l'API sia l'interfaccia, su un database
+PostgreSQL. Non serve altro.
 
 ## Avvio rapido
 
@@ -21,8 +21,9 @@ l'orario settimanale.
 
 ```bash
 npm install
-npm run db:seed   # facoltativo: due utenti di prova e due settimane di ore
-npm run dev       # API su :3000, interfaccia su :5173
+docker compose up -d db   # basta il database
+npm run db:seed           # facoltativo: due utenti di prova e due settimane di ore
+npm run dev               # API su :3000, interfaccia su :5173
 ```
 
 Il seed stampa le credenziali che crea.
@@ -59,7 +60,7 @@ risultano già ore registrate viene segnalata invece che sovrascritta.
 
 ```
 src/core/      dominio puro: date, orari, festività, motore ore, regole
-src/server/    API Hono, schema Drizzle, servizi (email, backup, Excel)
+src/server/    API Hono, schema Drizzle, servizi (email, esportazioni, Excel)
 src/web/       SPA React
   ui/          token e primitivi grafici
   features/    schermate
@@ -84,23 +85,35 @@ significa quindi toccare `ui/tokens.css` e `ui/primitives/`, non la logica.
 
 ## Configurazione
 
-Tutte le variabili sono facoltative e documentate in
-[`.env.example`](.env.example). Senza SMTP l'applicazione funziona ma non invia
-email: i link di reimpostazione password, le notifiche di assenza e i promemoria
-vengono registrati nel log invece che spediti.
+Le variabili sono documentate in [`.env.example`](.env.example). L'unica
+obbligatoria è la connessione al database: sotto Docker basta impostare
+`POSTGRES_PASSWORD`, altrove va indicata `DATABASE_URL` per intero.
+
+Senza SMTP l'applicazione funziona ma non invia email: i link di reimpostazione
+password, le notifiche di assenza e i promemoria vengono registrati nel log
+invece che spediti.
 
 ## Backup
 
-Un backup notturno viene creato con `VACUUM INTO`, che produce una copia
-consistente senza fermare l'applicazione. Dalla schermata **Manutenzione** un
-amministratore può crearne uno a richiesta, scaricarlo o ripristinarne uno.
+Il backup del database è un lavoro da operatore, non un pulsante
+nell'applicazione: `pg_dump` da un cron dell'host, con la ritenzione che
+preferisci.
 
-Il ripristino verifica il file caricato, mette da parte una copia del database
-attuale e poi riapre la connessione senza riavviare il processo.
+```bash
+docker compose exec -T db pg_dump -U presenze presenze | gzip > presenze-$(date +%F).sql.gz
+```
+
+Dalla schermata **Manutenzione** un amministratore può invece scaricare i propri
+dati in JSON — utenti, orari, cartellini e richieste, senza gli hash delle
+password. È l'esportazione che gli serve per portarli altrove, non una copia del
+database di tutti.
+
+La versione precedente esponeva un endpoint di ripristino che sostituiva l'intero
+database: non esiste più, ed è bene che sia così ora che in quel database vivono
+i dati di più aziende.
 
 ## Note operative
 
-Il database è un file SQLite e i job pianificati girano nel processo: va
-eseguita **una sola istanza**. Per lo stesso motivo non c'è nulla da scalare
-orizzontalmente — se un domani servisse, andrebbero sostituiti sia il database
-sia lo scheduler.
+L'applicazione è senza stato: tutto ciò che dura sta in Postgres. I job
+pianificati prendono un *advisory lock* prima di partire, quindi più repliche
+non significano più esecuzioni.

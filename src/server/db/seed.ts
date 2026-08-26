@@ -4,7 +4,7 @@
  * through creating their own account.
  */
 import { randomUUID } from "node:crypto";
-import { migrate } from "drizzle-orm/better-sqlite3/migrator";
+import { migrate } from "drizzle-orm/postgres-js/migrator";
 import { addDays, todayIn, type LocalDate } from "@core/date";
 import { isHoliday } from "@core/holidays";
 import { isWorkingDate } from "@core/schedule";
@@ -14,7 +14,7 @@ import { hashPassword } from "../auth/password";
 import { env, holidayConfig } from "../env";
 import { createDefaultSchedules, weekScheduleOf } from "../services/schedules";
 import { hourColumns } from "../services/timesheet";
-import { db } from "./client";
+import { closeDatabase, db } from "./client";
 import { timeEntries, users } from "./schema";
 
 const PEOPLE = [
@@ -24,7 +24,7 @@ const PEOPLE = [
 
 async function seed() {
   // Standalone entry point: the schema may not exist yet.
-  migrate(db, { migrationsFolder: "src/server/db/migrations" });
+  await migrate(db, { migrationsFolder: "src/server/db/migrations" });
 
   const existing = await db.select().from(users).limit(1);
   if (existing.length > 0) {
@@ -92,4 +92,9 @@ async function seed() {
   console.info(`Seed completato: ${created.length} utenti, ${filled} giornate.`);
 }
 
-await seed();
+try {
+  await seed();
+} finally {
+  // A connection pool, unlike an open file, keeps the process alive.
+  await closeDatabase();
+}

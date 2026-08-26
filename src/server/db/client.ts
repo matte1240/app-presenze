@@ -1,41 +1,28 @@
-import Database from "better-sqlite3";
-import { drizzle } from "drizzle-orm/better-sqlite3";
-import { mkdirSync } from "node:fs";
-import { dirname, resolve } from "node:path";
+import { drizzle } from "drizzle-orm/postgres-js";
+import postgres from "postgres";
 import { env } from "../env";
 import * as schema from "./schema";
 
-export const databaseFile = resolve(env.DATABASE_FILE);
-mkdirSync(dirname(databaseFile), { recursive: true });
-
-function open() {
-  const connection = new Database(databaseFile);
-  // WAL keeps readers off the single writer's back, which is all a
-  // single-instance deployment needs. Foreign keys are off by default in
-  // SQLite and the cascade deletes depend on them.
-  connection.pragma("journal_mode = WAL");
-  connection.pragma("foreign_keys = ON");
-  connection.pragma("busy_timeout = 5000");
-  return connection;
-}
-
 /**
- * Exported with `let` on purpose. A database restore swaps the file underneath
- * us, and an ES module's live bindings mean every importer picks up the new
- * handle — so restoring no longer has to kill the process and lean on the
- * container restart policy to come back.
+ * One pool for the whole process.
+ *
+ * The SQLite build exported `db` with `let` so that restoring a backup could
+ * swap the file handle underneath every importer. There is no file to swap any
+ * more — a Postgres restore happens outside the process — so the binding is
+ * constant again.
  */
-export let sqlite = open();
-export let db = drizzle(sqlite, { schema });
+export const sql = postgres(env.DATABASE_URL, {
+  max: env.DATABASE_POOL_MAX,
+  // Dates are civil values in this application (`work_date` is a string) and
+  // every timestamp column is `timestamptz`, so the driver never has to guess.
+  types: {},
+  onnotice: () => {},
+});
 
-export function reopenDatabase(): void {
-  try {
-    sqlite.close();
-  } catch (error) {
-    console.error("Chiusura della connessione fallita:", error);
-  }
-  sqlite = open();
-  db = drizzle(sqlite, { schema });
+export const db = drizzle(sql, { schema });
+
+export async function closeDatabase(): Promise<void> {
+  await sql.end({ timeout: 5 });
 }
 
 export { schema };

@@ -1,8 +1,28 @@
 services:
+  db:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-presenze}
+      POSTGRES_USER: ${POSTGRES_USER:-presenze}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?serve una password per il database}
+      TZ: ${TZ:-Europe/Rome}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-presenze} -d ${POSTGRES_DB:-presenze}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
   app:
     build: .
     image: ${DOCKER_IMAGE:-app-presenze:latest}
     restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
     ports:
       - "${APP_PORT:-3000}:3000"
     environment:
@@ -13,6 +33,8 @@ services:
       COMPANY_NAME: ${COMPANY_NAME:-}
       HOLIDAY_PATRON_DAYS: ${HOLIDAY_PATRON_DAYS:-}
 
+      DATABASE_URL: postgres://${POSTGRES_USER:-presenze}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-presenze}
+
       SMTP_HOST: ${SMTP_HOST:-}
       SMTP_PORT: ${SMTP_PORT:-587}
       SMTP_SECURE: ${SMTP_SECURE:-false}
@@ -21,17 +43,11 @@ services:
       MAIL_FROM: ${MAIL_FROM:-}
 
       ENABLE_CRON: ${ENABLE_CRON:-true}
-      BACKUP_CRON: ${BACKUP_CRON:-0 2 * * *}
       REMINDER_CRON: ${REMINDER_CRON:-0 19 * * *}
-      BACKUP_RETENTION_DAYS: ${BACKUP_RETENTION_DAYS:-30}
-      BACKUP_MIN_COUNT: ${BACKUP_MIN_COUNT:-7}
-      BACKUP_EMAIL_TO: ${BACKUP_EMAIL_TO:-}
-    volumes:
-      - data:/app/data
-      - backups:/app/backups
 
-# SQLite plus in-process cron means exactly one instance. Scaling this service
-# would corrupt the first and double-fire the second.
+# The application itself is stateless now: everything durable is in Postgres,
+# and the scheduled jobs take an advisory lock, so a second replica no longer
+# means a second scheduler. Back the database up from outside the container —
+# `pg_dump` on a host cron — rather than from inside the application.
 volumes:
-  data:
-  backups:
+  pgdata:
