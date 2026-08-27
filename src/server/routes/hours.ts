@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { Hono } from "hono";
 import { z } from "zod";
 import { monthRange, toLocalDate, toYearMonth, type LocalDate } from "@core/date";
@@ -13,10 +13,19 @@ import {
 } from "@core/policy";
 import { toClock, type Span } from "@core/time";
 import { computeDay, type DayInput, type DayKind } from "@core/timesheet";
-import { isAdmin, requireAdmin, requireUser, resolveTargetUser, sessionOf } from "../auth/guards";
+import {
+  isAdmin,
+  requireActiveSubscription,
+  requireAdmin,
+  requireUser,
+  resolveTargetUser,
+  sessionOf,
+} from "../auth/guards";
 import { db } from "../db/client";
+import { currentOrgId } from "../db/context";
+import { currentHolidays } from "../db/current";
 import { timeEntries, users, type UserRow } from "../db/schema";
-import { env, holidayConfig } from "../env";
+import { env } from "../env";
 import type { AppEnv } from "../http/app-env";
 import { forbidden, notFound } from "../http/errors";
 import { validate } from "../http/validate";
@@ -52,8 +61,14 @@ const QUOTA_MESSAGE: Record<string, string> = {
 };
 
 async function targetUser(userId: string): Promise<UserRow> {
-  const [user] = await db.select().from(users).where(eq(users.id, userId)).limit(1);
+  const [user] = await db
+    .select()
+    .from(users)
+    .where(and(eq(users.organizationId, currentOrgId()), eq(users.id, userId)))
+    .limit(1);
   if (!user) throw notFound("Utente inesistente");
+  // Their past stays readable; their timesheet stops accepting new days.
+  if (user.deactivatedAt) throw forbidden("L'utente è disattivato");
   return user;
 }
 
@@ -76,6 +91,7 @@ const listQuery = z.object({
 
 export const hoursRoutes = new Hono<AppEnv>()
   .use("*", requireUser)
+  .use("*", requireActiveSubscription)
 
   .get("/", validate("query", listQuery), async (c) => {
     const session = sessionOf(c);
@@ -102,7 +118,7 @@ export const hoursRoutes = new Hono<AppEnv>()
       today: today(),
       role: session.user.role,
       flags: flagsOf(user),
-      holidays: holidayConfig,
+      holidays: currentHolidays(),
     });
     if (!verdict.ok) throw forbidden(DENIAL_MESSAGE[verdict.reason] ?? "Data non modificabile");
 
@@ -139,7 +155,7 @@ export const hoursRoutes = new Hono<AppEnv>()
     };
 
     const week = await weekScheduleOf(userId);
-    const breakdown = computeDay(input, week, { holidays: holidayConfig });
+    const breakdown = computeDay(input, week, { holidays: currentHolidays() });
     const existing = await entryOn(userId, date);
 
     const quota104 = check104Quota({
@@ -170,7 +186,11 @@ export const hoursRoutes = new Hono<AppEnv>()
 
   .delete("/:id", async (c) => {
     const session = sessionOf(c);
-    const [row] = await db.select().from(timeEntries).where(eq(timeEntries.id, c.req.param("id"))).limit(1);
+    const [row] = await db
+      .select()
+      .from(timeEntries)
+      .where(and(eq(timeEntries.organizationId, currentOrgId()), eq(timeEntries.id, c.req.param("id"))))
+      .limit(1);
     if (!row) throw notFound("Voce inesistente");
 
     if (!isAdmin(session.user)) {
@@ -180,12 +200,14 @@ export const hoursRoutes = new Hono<AppEnv>()
         today: today(),
         role: session.user.role,
         flags: flagsOf(session.user),
-        holidays: holidayConfig,
+        holidays: currentHolidays(),
       });
       if (!verdict.ok) throw forbidden(DENIAL_MESSAGE[verdict.reason] ?? "Data non modificabile");
     }
 
-    await db.delete(timeEntries).where(eq(timeEntries.id, row.id));
+    await db
+      .delete(timeEntries)
+      .where(and(eq(timeEntries.organizationId, currentOrgId()), eq(timeEntries.id, row.id)));
     return c.json({ ok: true });
   })
 

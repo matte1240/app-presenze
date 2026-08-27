@@ -1,22 +1,19 @@
 # syntax=docker/dockerfile:1
 
 # ── Production dependencies ────────────────────────────────────────────────
-# Only three packages survive bundling: better-sqlite3 (a native addon),
-# exceljs and nodemailer (dynamic requires). Everything else — React, the
-# router, Tailwind — is a build-time concern and lives in devDependencies, so
-# it never reaches the runtime image.
+# Only three packages survive bundling: postgres, exceljs and nodemailer.
+# Everything else — React, the router, Tailwind — is a build-time concern and
+# lives in devDependencies, so it never reaches the runtime image. Nothing
+# compiles any more: the SQLite addon was the only reason this stage needed a
+# C toolchain.
 FROM node:22-bookworm-slim AS deps
 WORKDIR /app
-RUN apt-get update && apt-get install -y --no-install-recommends python3 make g++ \
-    && rm -rf /var/lib/apt/lists/*
 COPY package.json package-lock.json ./
 RUN npm ci --omit=dev
 
 # ── Build ──────────────────────────────────────────────────────────────────
 FROM node:22-bookworm-slim AS build
 WORKDIR /app
-RUN apt-get update && apt-get install -y --no-install-recommends python3 make g++ \
-    && rm -rf /var/lib/apt/lists/*
 COPY package.json package-lock.json ./
 RUN npm ci
 COPY . .
@@ -26,18 +23,28 @@ RUN npm run build
 FROM node:22-bookworm-slim AS runner
 WORKDIR /app
 ENV NODE_ENV=production \
-    PORT=3000 \
-    DATABASE_FILE=/app/data/app.db \
-    BACKUP_DIR=/app/backups
+    PORT=3000
+
+# The one thing that isn't pure JavaScript: whole-database backups shell out to
+# the real `pg_dump`/`pg_restore` rather than reimplementing either. Installed
+# at major version 17 to match `postgres:17-alpine` in docker-compose.yml —
+# pg_dump does not officially support dumping from a server newer than itself,
+# so this has to track whatever version the database service runs, not
+# Debian's own default.
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends curl ca-certificates gnupg postgresql-common \
+    && /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y \
+    && apt-get install -y --no-install-recommends postgresql-client-17 \
+    && apt-get purge -y --auto-remove curl gnupg \
+    && rm -rf /var/lib/apt/lists/*
 
 COPY --from=deps  /app/node_modules ./node_modules
 COPY --from=build /app/dist         ./dist
 COPY package.json ./
 
-# The database and the backups are the only writable state.
-RUN mkdir -p /app/data /app/backups && chown -R node:node /app/data /app/backups
+# All state lives in Postgres and, for backups, in object storage; the
+# container itself is disposable.
 USER node
-VOLUME ["/app/data", "/app/backups"]
 
 EXPOSE 3000
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \

@@ -3,17 +3,30 @@
  * be answered before they can decide anything.
  */
 import { randomUUID } from "node:crypto";
-import { and, between, eq, gt, gte, inArray, lte, sql } from "drizzle-orm";
+import { and, between, eq, gt, gte, inArray, isNull, lte, sql } from "drizzle-orm";
 import { addDays, eachDay, monthRange, todayIn, toYearMonth, type LocalDate } from "@core/date";
 import { daysToMaterialize, EMPLOYEE_EDIT_WINDOW_DAYS } from "@core/policy";
 import type { WeekSchedule } from "@core/schedule";
 import { toClock, type Span } from "@core/time";
 import { computeDay, type DayBreakdown, type DayInput, type DayKind } from "@core/timesheet";
 import { db } from "../db/client";
+import { currentOrgId } from "../db/context";
+import { currentHolidays, currentTimezone } from "../db/current";
 import { leaveRequests, timeEntries, users, type TimeEntryRow } from "../db/schema";
-import { env, holidayConfig } from "../env";
 
-export const today = () => todayIn(env.TZ);
+/**
+ * The civil date in the company's own timezone. A branch in Palermo and one in
+ * Munich do not roll over to tomorrow at the same instant.
+ */
+export const today = () => todayIn(currentTimezone());
+
+/**
+ * Every query below repeats this, on top of the row-level security policy that
+ * would already refuse the rows. Two locks on one door: the policy is what
+ * holds if a filter is ever forgotten, and the filter is what holds on the
+ * connection that the policy exempts.
+ */
+const mine = () => eq(timeEntries.organizationId, currentOrgId());
 
 function spanOf(start: string | null, end: string | null): Span | null {
   return start && end ? { start: toClock(start), end: toClock(end) } : null;
@@ -46,12 +59,18 @@ export function hourColumns(b: DayBreakdown) {
   };
 }
 
+/** `userId: null` means "everyone" — everyone in this company, that is. */
 export function entriesBetween(userId: string | null, from: LocalDate, to: LocalDate) {
-  const range = between(timeEntries.workDate, from, to);
   return db
     .select()
     .from(timeEntries)
-    .where(userId ? and(eq(timeEntries.userId, userId), range) : range)
+    .where(
+      and(
+        mine(),
+        between(timeEntries.workDate, from, to),
+        userId ? eq(timeEntries.userId, userId) : undefined,
+      ),
+    )
     .orderBy(timeEntries.workDate);
 }
 
@@ -59,7 +78,7 @@ export async function entryOn(userId: string, date: LocalDate): Promise<TimeEntr
   const [row] = await db
     .select()
     .from(timeEntries)
-    .where(and(eq(timeEntries.userId, userId), eq(timeEntries.workDate, date)))
+    .where(and(mine(), eq(timeEntries.userId, userId), eq(timeEntries.workDate, date)))
     .limit(1);
   return row;
 }
@@ -74,6 +93,7 @@ export async function approvedLeaveOn(userId: string, date: LocalDate): Promise<
     .from(leaveRequests)
     .where(
       and(
+        eq(leaveRequests.organizationId, currentOrgId()),
         eq(leaveRequests.userId, userId),
         eq(leaveRequests.status, "APPROVED"),
         eq(leaveRequests.type, "PERMESSO"),
@@ -91,6 +111,7 @@ export async function hours104InMonth(userId: string, date: LocalDate, excludeEn
     .from(timeEntries)
     .where(
       and(
+        mine(),
         eq(timeEntries.userId, userId),
         between(timeEntries.workDate, from, to),
         excludeEntryId ? sql`${timeEntries.id} <> ${excludeEntryId}` : undefined,
@@ -106,6 +127,7 @@ export async function paternityDaysInYear(userId: string, date: LocalDate, exclu
     .from(timeEntries)
     .where(
       and(
+        mine(),
         eq(timeEntries.userId, userId),
         gte(timeEntries.workDate, `${year}-01-01`),
         lte(timeEntries.workDate, `${year}-12-31`),
@@ -132,6 +154,7 @@ export async function saveEntry(args: SaveArgs): Promise<{ row: TimeEntryRow; cr
   const existing = await entryOn(args.userId, args.input.date);
 
   const values = {
+    organizationId: currentOrgId(),
     userId: args.userId,
     workDate: args.input.date,
     kind: args.input.kind,
@@ -150,7 +173,11 @@ export async function saveEntry(args: SaveArgs): Promise<{ row: TimeEntryRow; cr
   };
 
   if (existing) {
-    const [row] = await db.update(timeEntries).set(values).where(eq(timeEntries.id, existing.id)).returning();
+    const [row] = await db
+      .update(timeEntries)
+      .set(values)
+      .where(and(mine(), eq(timeEntries.id, existing.id)))
+      .returning();
     return { row: row!, created: false };
   }
 
@@ -174,7 +201,7 @@ export async function recalculateMonth(userId: string, month: string, week: Week
   let changed = 0;
   for (const row of rows) {
     const leave = await approvedLeaveOn(userId, row.workDate as LocalDate);
-    const breakdown = computeDay(toDayInput(row, leave), week, { holidays: holidayConfig });
+    const breakdown = computeDay(toDayInput(row, leave), week, { holidays: currentHolidays() });
     const next = hourColumns(breakdown);
 
     const differs = (Object.keys(next) as Array<keyof typeof next>).some(
@@ -182,7 +209,10 @@ export async function recalculateMonth(userId: string, month: string, week: Week
     );
     if (!differs) continue;
 
-    await db.update(timeEntries).set({ ...next, updatedAt: new Date() }).where(eq(timeEntries.id, row.id));
+    await db
+      .update(timeEntries)
+      .set({ ...next, updatedAt: new Date() })
+      .where(and(mine(), eq(timeEntries.id, row.id)));
     changed += 1;
   }
 
@@ -197,7 +227,7 @@ export async function recalculateMonth(userId: string, month: string, week: Week
 export async function missingDaysFor(userId: string, week: WeekSchedule, lookbackDays = 5) {
   const to = addDays(today(), -1);
   const from = addDays(to, -(lookbackDays - 1));
-  const candidates = daysToMaterialize({ days: eachDay(from, to), week, holidays: holidayConfig });
+  const candidates = daysToMaterialize({ days: eachDay(from, to), week, holidays: currentHolidays() });
   if (candidates.length === 0) return { editable: [], requiresAdmin: [] };
 
   const entered = new Set(
@@ -209,6 +239,7 @@ export async function missingDaysFor(userId: string, week: WeekSchedule, lookbac
     .from(leaveRequests)
     .where(
       and(
+        eq(leaveRequests.organizationId, currentOrgId()),
         eq(leaveRequests.userId, userId),
         eq(leaveRequests.status, "APPROVED"),
         lte(leaveRequests.startDate, to),
@@ -226,9 +257,17 @@ export async function missingDaysFor(userId: string, week: WeekSchedule, lookbac
   };
 }
 
+/** The active employees of the organization in context — never of all of them. */
 export async function employeesWithEmail() {
   return db
     .select({ id: users.id, name: users.name, email: users.email })
     .from(users)
-    .where(inArray(users.role, ["EMPLOYEE"]));
+    .where(
+      and(
+        eq(users.organizationId, currentOrgId()),
+        inArray(users.role, ["EMPLOYEE"]),
+        // Nobody should be nagged about a timesheet they can no longer open.
+        isNull(users.deactivatedAt),
+      ),
+    );
 }

@@ -6,10 +6,17 @@ import { eachDay, toLocalDate, type LocalDate } from "@core/date";
 import { leaveRequestSchema, leaveReviewSchema, leaveStatusSchema } from "@core/contracts";
 import { daysToMaterialize } from "@core/policy";
 import { computeDay, type DayInput } from "@core/timesheet";
-import { isAdmin, requireAdmin, requireUser, sessionOf } from "../auth/guards";
+import {
+  isAdmin,
+  requireActiveSubscription,
+  requireAdmin,
+  requireUser,
+  sessionOf,
+} from "../auth/guards";
 import { db } from "../db/client";
+import { currentOrgId } from "../db/context";
+import { currentHolidays } from "../db/current";
 import { leaveRequests, timeEntries, users, type LeaveRequestRow } from "../db/schema";
-import { holidayConfig } from "../env";
 import type { AppEnv } from "../http/app-env";
 import { conflict, notFound } from "../http/errors";
 import { validate } from "../http/validate";
@@ -19,8 +26,16 @@ import { approvedLeaveOn, entryOn, hourColumns, saveEntry, toDayInput } from "..
 
 const KIND_FOR = { VACATION: "vacation", SICKNESS: "sickness" } as const;
 
+/**
+ * Not found, never forbidden, for an id belonging to another company — a 403
+ * would confirm the id exists.
+ */
 async function loadRequest(id: string): Promise<LeaveRequestRow> {
-  const [row] = await db.select().from(leaveRequests).where(eq(leaveRequests.id, id)).limit(1);
+  const [row] = await db
+    .select()
+    .from(leaveRequests)
+    .where(and(eq(leaveRequests.organizationId, currentOrgId()), eq(leaveRequests.id, id)))
+    .limit(1);
   if (!row) throw notFound("Richiesta inesistente");
   return row;
 }
@@ -41,7 +56,7 @@ async function materialize(request: LeaveRequestRow, actorId: string) {
   const days = daysToMaterialize({
     days: eachDay(toLocalDate(request.startDate), toLocalDate(request.endDate)),
     week,
-    holidays: holidayConfig,
+    holidays: currentHolidays(),
   });
 
   const conflicts: LocalDate[] = [];
@@ -70,7 +85,7 @@ async function materialize(request: LeaveRequestRow, actorId: string) {
       userId: request.userId,
       actorId,
       input,
-      breakdown: computeDay(input, week, { holidays: holidayConfig }),
+      breakdown: computeDay(input, week, { holidays: currentHolidays() }),
       notes: existing?.notes ?? null,
       medicalCertificate: existing?.medicalCertificate ?? null,
     });
@@ -91,7 +106,7 @@ async function refreshDayForPermesso(request: LeaveRequestRow) {
 
   const week = await weekScheduleOf(request.userId);
   const leave = await approvedLeaveOn(request.userId, date);
-  const breakdown = computeDay(toDayInput(existing, leave), week, { holidays: holidayConfig });
+  const breakdown = computeDay(toDayInput(existing, leave), week, { holidays: currentHolidays() });
 
   await db
     .update(timeEntries)
@@ -106,6 +121,7 @@ const listQuery = z.object({
 
 export const requestRoutes = new Hono<AppEnv>()
   .use("*", requireUser)
+  .use("*", requireActiveSubscription)
 
   .get("/", validate("query", listQuery), async (c) => {
     const session = sessionOf(c);
@@ -121,6 +137,7 @@ export const requestRoutes = new Hono<AppEnv>()
       .innerJoin(users, eq(users.id, leaveRequests.userId))
       .where(
         and(
+          eq(leaveRequests.organizationId, currentOrgId()),
           scope ? eq(leaveRequests.userId, scope) : undefined,
           status ? eq(leaveRequests.status, status) : undefined,
         ),
@@ -141,6 +158,7 @@ export const requestRoutes = new Hono<AppEnv>()
       .from(leaveRequests)
       .where(
         and(
+          eq(leaveRequests.organizationId, currentOrgId()),
           eq(leaveRequests.userId, session.user.id),
           ne(leaveRequests.status, "REJECTED"),
           lte(leaveRequests.startDate, payload.endDate),
@@ -155,6 +173,7 @@ export const requestRoutes = new Hono<AppEnv>()
       .from(timeEntries)
       .where(
         and(
+          eq(timeEntries.organizationId, currentOrgId()),
           eq(timeEntries.userId, session.user.id),
           gte(timeEntries.workDate, payload.startDate),
           lte(timeEntries.workDate, payload.endDate),
@@ -169,6 +188,7 @@ export const requestRoutes = new Hono<AppEnv>()
       .insert(leaveRequests)
       .values({
         id: randomUUID(),
+        organizationId: currentOrgId(),
         userId: session.user.id,
         type: payload.type,
         startDate: payload.startDate,
@@ -179,7 +199,13 @@ export const requestRoutes = new Hono<AppEnv>()
       })
       .returning();
 
-    const admins = await db.select().from(users).where(eq(users.role, "ADMIN"));
+    // The administrators of this company. Without the predicate this notified
+    // every administrator on the installation, which on a shared database
+    // would mean telling other companies who has asked for time off.
+    const admins = await db
+      .select()
+      .from(users)
+      .where(and(eq(users.organizationId, currentOrgId()), eq(users.role, "ADMIN")));
     await Promise.allSettled(
       admins.map((admin) =>
         sendLeaveRequestToAdmin({
@@ -210,7 +236,7 @@ export const requestRoutes = new Hono<AppEnv>()
     const [updated] = await db
       .update(leaveRequests)
       .set({ status, reviewedBy: session.user.id, reviewedAt: new Date() })
-      .where(eq(leaveRequests.id, request.id))
+      .where(and(eq(leaveRequests.organizationId, currentOrgId()), eq(leaveRequests.id, request.id)))
       .returning();
 
     let materialized = { created: 0, conflicts: [] as LocalDate[] };
@@ -222,7 +248,11 @@ export const requestRoutes = new Hono<AppEnv>()
       }
     }
 
-    const [employee] = await db.select().from(users).where(eq(users.id, request.userId)).limit(1);
+    const [employee] = await db
+      .select()
+      .from(users)
+      .where(and(eq(users.organizationId, currentOrgId()), eq(users.id, request.userId)))
+      .limit(1);
     if (employee) {
       void sendLeaveDecision({
         to: employee.email,
@@ -254,7 +284,7 @@ export const requestRoutes = new Hono<AppEnv>()
           endTime: payload.endTime,
           reason: payload.reason,
         })
-        .where(eq(leaveRequests.id, request.id))
+        .where(and(eq(leaveRequests.organizationId, currentOrgId()), eq(leaveRequests.id, request.id)))
         .returning();
 
       return c.json({ request: updated });
@@ -263,7 +293,9 @@ export const requestRoutes = new Hono<AppEnv>()
 
   .delete("/:id", requireAdmin, async (c) => {
     const request = await loadRequest(c.req.param("id"));
-    await db.delete(leaveRequests).where(eq(leaveRequests.id, request.id));
+    await db
+      .delete(leaveRequests)
+      .where(and(eq(leaveRequests.organizationId, currentOrgId()), eq(leaveRequests.id, request.id)));
     return c.json({ ok: true });
   });
 

@@ -77,19 +77,32 @@ async function send(to: string, subject: string, layout: Layout, replyTo?: strin
 const list = (items: readonly string[]) =>
   `<ul style="margin:0 0 12px;padding-left:20px;line-height:1.8">${items.map((i) => `<li>${i}</li>`).join("")}</ul>`;
 
-export function sendPasswordResetEmail(to: string, token: string) {
-  return send(to, "Reimposta la tua password", {
+/**
+ * `organizationName` is not decoration. The same address can hold an account in
+ * more than one company, each with its own password, and a link that does not
+ * say which one it opens is a link the recipient cannot use.
+ */
+export function sendPasswordResetEmail(to: string, token: string, organizationName: string) {
+  return send(to, `Reimposta la tua password — ${organizationName}`, {
     title: "Reimposta la password",
-    intro: "Abbiamo ricevuto una richiesta di reimpostazione della password per il tuo account.",
+    intro: `Abbiamo ricevuto una richiesta di reimpostazione della password per il tuo account su ${escape(organizationName)}.`,
     action: { label: "Scegli una nuova password", href: `${env.APP_URL}/reset-password?token=${token}` },
     footnote: "Il link scade fra un'ora. Se non hai richiesto tu il cambio, puoi ignorare questa email.",
   });
 }
 
-export function sendWelcomeEmail(to: string, name: string, token: string) {
-  return send(to, `Il tuo accesso a ${env.APP_NAME}`, {
+export function sendBackupNotice(to: string, filename: string, sizeBytes: number) {
+  return send(to, `Backup completato — ${filename}`, {
+    title: "Backup del database completato",
+    intro: `Il backup <strong>${escape(filename)}</strong> è stato creato e caricato sullo storage (${(sizeBytes / 1024 / 1024).toFixed(1)} MB).`,
+    footnote: "Nessuna azione richiesta. Scaricalo o gestiscilo dal back-office se serve.",
+  });
+}
+
+export function sendWelcomeEmail(to: string, name: string, token: string, organizationName: string) {
+  return send(to, `Il tuo accesso a ${organizationName}`, {
     title: `Benvenuto, ${escape(name)}`,
-    intro: `È stato creato un account per te su ${escape(env.APP_NAME)}. Imposta una password per iniziare.`,
+    intro: `È stato creato un account per te su ${escape(organizationName)}. Imposta una password per iniziare.`,
     action: { label: "Imposta la password", href: `${env.APP_URL}/reset-password?token=${token}` },
     footnote: "Il link scade fra 24 ore.",
   });
@@ -176,23 +189,24 @@ export function sendMissingTimesheetReminder(args: {
   });
 }
 
-export function sendBackupNotice(to: string, filename: string, sizeBytes: number, attachment?: string) {
-  const t = transport();
-  if (!t) return Promise.resolve(false);
-  return t
-    .sendMail({
-      from: env.MAIL_FROM,
-      to,
-      subject: `Backup del database — ${filename}`,
-      html: render({
-        title: "Backup completato",
-        intro: `Il backup <strong>${escape(filename)}</strong> è stato creato (${(sizeBytes / 1024 / 1024).toFixed(1)} MB).`,
-      }),
-      attachments: attachment ? [{ path: attachment, filename }] : undefined,
-    })
-    .then(() => true)
-    .catch((error: unknown) => {
-      console.error("Invio backup fallito:", error);
-      return false;
-    });
+export function sendTrialEndingEmail(args: {
+  to: string;
+  organizationName: string;
+  daysLeft: number;
+}) {
+  const when =
+    args.daysLeft === 0
+      ? "oggi"
+      : args.daysLeft === 1
+        ? "domani"
+        : `fra ${args.daysLeft} giorni`;
+
+  return send(args.to, `La prova di ${args.organizationName} finisce ${when}`, {
+    title: "La prova gratuita sta per finire",
+    intro:
+      `Il periodo di prova di <strong>${escape(args.organizationName)}</strong> finisce ${when}. ` +
+      "Dopo, i dati restano consultabili ed esportabili, ma non sarà più possibile registrare nuove ore.",
+    action: { label: "Scegli un piano", href: `${env.APP_URL}/abbonamento` },
+    footnote: "Se hai già attivato un abbonamento puoi ignorare questa email.",
+  });
 }

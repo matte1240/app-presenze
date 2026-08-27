@@ -5,6 +5,14 @@
  */
 import { z } from "zod";
 import { isLocalDate } from "./date";
+import {
+  isFiscalCode,
+  isPecAddress,
+  isSdiCode,
+  isVatNumber,
+  needsDeliveryAddress,
+  needsTaxIdentifier,
+} from "./fiscal";
 import { isClock } from "./time";
 import { DAY_KINDS } from "./timesheet";
 
@@ -49,13 +57,143 @@ export const nameSchema = z.string().trim().min(1, "Il nome è obbligatorio").ma
 
 // ── Authentication ────────────────────────────────────────────────────────
 
-export const loginSchema = z.object({ email: emailSchema, password: z.string().min(1) });
-export const setupSchema = z.object({ name: nameSchema, email: emailSchema, password: passwordSchema });
+/**
+ * `organizationId` is the second half of a two-step sign-in. It is absent the
+ * first time; if the address and password match an account in more than one
+ * company, the server answers with the list and the browser asks again naming
+ * one. Nothing is disclosed by that list which the password did not already
+ * unlock.
+ */
+export const loginSchema = z.object({
+  email: emailSchema,
+  password: z.string().min(1),
+  organizationId: z.string().min(1).optional(),
+});
+
+export const organizationNameSchema = z
+  .string()
+  .trim()
+  .min(2, "Il nome dell'organizzazione è obbligatorio")
+  .max(120);
+
+/** Creating a company and its first administrator, in one step. */
+export const signupSchema = z.object({
+  organizationName: organizationNameSchema,
+  name: nameSchema,
+  email: emailSchema,
+  password: passwordSchema,
+});
 export const forgotPasswordSchema = z.object({ email: emailSchema });
 export const resetPasswordSchema = z.object({ token: z.string().min(1), password: passwordSchema });
 export const changePasswordSchema = z.object({
   currentPassword: z.string().min(1, "Inserisci la password attuale"),
   newPassword: passwordSchema,
+});
+
+// ── Organization ──────────────────────────────────────────────────────────
+
+/**
+ * A real IANA zone, checked by asking the platform rather than by keeping a
+ * list of our own that would be wrong within a year.
+ */
+const isTimezone = (value: string): boolean => {
+  try {
+    new Intl.DateTimeFormat("en", { timeZone: value });
+    return true;
+  } catch {
+    return false;
+  }
+};
+
+/** `MM-DD`, comma separated — the shape `holidayConfigOf()` already reads. */
+const isPatronDays = (value: string): boolean =>
+  value
+    .split(",")
+    .map((d) => d.trim())
+    .filter(Boolean)
+    .every((d) => /^(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/.test(d));
+
+export const organizationSettingsSchema = z.object({
+  name: organizationNameSchema,
+  /** What staff see on the sign-in screen; defaults to the name. */
+  companyName: z.string().trim().max(120).nullable(),
+  timezone: z.string().refine((v): boolean => isTimezone(v), "Fuso orario non valido"),
+  holidayPatronDays: z
+    .string()
+    .trim()
+    .refine((v): boolean => isPatronDays(v), "Usa il formato MM-DD, separato da virgole"),
+});
+
+/**
+ * Changing the address changes the key you sign in with, so the current
+ * password comes with it. The name alone does not need one.
+ */
+export const updateProfileSchema = z
+  .object({
+    name: nameSchema,
+    email: emailSchema,
+    currentPassword: z.string().optional(),
+  });
+
+/**
+ * Who to invoice.
+ *
+ * The identifiers are checked for real rather than for length — see
+ * `@core/fiscal` — because a transposed digit becomes an invoice the exchange
+ * system rejects weeks later, when nobody remembers typing it.
+ */
+export const billingProfileSchema = z
+  .object({
+    legalName: z.string().trim().min(2, "La ragione sociale è obbligatoria").max(160),
+    addressLine: z.string().trim().min(2, "L'indirizzo è obbligatorio").max(200),
+    postalCode: z.string().trim().min(3, "Il CAP è obbligatorio").max(12),
+    city: z.string().trim().min(2, "La città è obbligatoria").max(100),
+    province: z.string().trim().max(4).nullable(),
+    country: z.string().trim().length(2, "Usa il codice paese a due lettere").toUpperCase(),
+
+    vatNumber: z
+      .string()
+      .trim()
+      .nullable()
+      .refine((v): boolean => v === null || v === "" || isVatNumber(v), "Partita IVA non valida"),
+    taxCode: z
+      .string()
+      .trim()
+      .nullable()
+      .refine((v): boolean => v === null || v === "" || isFiscalCode(v), "Codice fiscale non valido"),
+    sdiCode: z
+      .string()
+      .trim()
+      .nullable()
+      .refine((v): boolean => v === null || v === "" || isSdiCode(v), "Codice destinatario non valido"),
+    pec: z
+      .string()
+      .trim()
+      .nullable()
+      .refine((v): boolean => v === null || v === "" || isPecAddress(v), "PEC non valida"),
+    billingEmail: z.string().trim().nullable(),
+  })
+  .refine((p) => !needsTaxIdentifier(asIdentity(p)), {
+    message: "Serve almeno la partita IVA o il codice fiscale",
+    path: ["vatNumber"],
+  })
+  .refine((p) => !needsDeliveryAddress(asIdentity(p)), {
+    message: "Per un cliente italiano serve il codice destinatario oppure la PEC",
+    path: ["sdiCode"],
+  });
+
+const asIdentity = (p: {
+  country: string;
+  vatNumber: string | null;
+  taxCode: string | null;
+  sdiCode: string | null;
+  pec: string | null;
+}) => ({
+  country: p.country,
+  vatNumber: p.vatNumber || null,
+  taxCode: p.taxCode || null,
+  sdiCode: p.sdiCode || null,
+  pec: p.pec || null,
 });
 
 // ── Timesheet ─────────────────────────────────────────────────────────────

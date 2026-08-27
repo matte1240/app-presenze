@@ -11,6 +11,8 @@ export interface ManagedUser {
   canWorkSunday: boolean;
   has104: boolean;
   hasPaternity: boolean;
+  /** Set when the person has left; their history stays, their account stops. */
+  deactivatedAt: string | null;
   createdAt: string;
   regularHours: number | null;
   overtimeHours: number | null;
@@ -41,11 +43,39 @@ export function useUpdateUser() {
   });
 }
 
+export function useDeactivateUser() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => call(rpc.users[":id"].deactivate.$post({ param: { id } })),
+    // The seat count on the session changes too, so the whole cache goes.
+    onSuccess: () => queryClient.invalidateQueries(),
+  });
+}
+
+export function useReactivateUser() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => call(rpc.users[":id"].reactivate.$post({ param: { id } })),
+    onSuccess: () => queryClient.invalidateQueries(),
+  });
+}
+
+export interface DeletionPreview {
+  deactivated: boolean;
+  timeEntries: number;
+  leaveRequests: number;
+}
+
+/** What deleting this person would destroy, so the confirmation can name it. */
+export function deletionPreview(id: string) {
+  return call<DeletionPreview>(rpc.users[":id"]["deletion-preview"].$get({ param: { id } }));
+}
+
 export function useDeleteUser() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (id: string) => call(rpc.users[":id"].$delete({ param: { id } })),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["users"] }),
+    onSuccess: () => queryClient.invalidateQueries(),
   });
 }
 

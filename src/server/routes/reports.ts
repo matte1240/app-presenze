@@ -1,9 +1,10 @@
-import { inArray } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import { Hono } from "hono";
 import { monthRange, toYearMonth } from "@core/date";
 import { excelReportSchema } from "@core/contracts";
 import { isAdmin, requireUser, sessionOf } from "../auth/guards";
 import { db } from "../db/client";
+import { currentOrgId } from "../db/context";
 import { users, type TimeEntryRow } from "../db/schema";
 import { env } from "../env";
 import type { AppEnv } from "../http/app-env";
@@ -22,7 +23,13 @@ export const reportRoutes = new Hono<AppEnv>()
       throw forbidden("Puoi esportare solo il tuo cartellino");
     }
 
-    const people = await db.select().from(users).where(inArray(users.id, userIds));
+    // Ids naming somebody else's staff simply match nothing here; the export
+    // comes back without them rather than refusing, because the caller was
+    // never told they existed in the first place.
+    const people = await db
+      .select()
+      .from(users)
+      .where(and(eq(users.organizationId, currentOrgId()), inArray(users.id, userIds)));
     const { from, to } = monthRange(toYearMonth(month));
 
     const entriesByUser = new Map<string, TimeEntryRow[]>();

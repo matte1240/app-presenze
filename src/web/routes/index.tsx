@@ -1,12 +1,12 @@
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { createFileRoute, redirect, useNavigate } from "@tanstack/react-router";
-import { Clock3 } from "lucide-react";
+import { createFileRoute, Link, redirect, useNavigate } from "@tanstack/react-router";
+import { Building2, Clock3 } from "lucide-react";
 import { useState } from "react";
 import { z } from "zod";
 import { forgotPasswordSchema, loginSchema } from "@core/contracts";
 import { ApiError, call, rpc } from "../api/client";
-import { authStateQuery, sessionQuery, useLogin } from "../api/session";
+import { authStateQuery, needsChoice, sessionQuery, useLogin } from "../api/session";
 import { useQuery } from "@tanstack/react-query";
 import { t } from "../i18n/it";
 import { Alert, Button, Dialog, Field, Input } from "../ui/primitives";
@@ -18,8 +18,8 @@ export const Route = createFileRoute("/")({
       context.queryClient.ensureQueryData(authStateQuery),
       context.queryClient.ensureQueryData(sessionQuery),
     ]);
-    if (state.needsSetup) throw redirect({ to: "/setup" });
     if (session) throw redirect({ to: "/calendario" });
+    return { signupEnabled: state.signupEnabled };
   },
   validateSearch: z.object({
     expired: z.boolean().optional(),
@@ -34,26 +34,39 @@ function LoginPage() {
   const navigate = useNavigate();
   const { data: state } = useQuery(authStateQuery);
   // Falls back to the product name so the line never reads "© 2026" alone.
-  const company = state?.companyName?.trim() || state?.appName || t.app.name;
+  const company = state?.appName || t.app.name;
   const search = Route.useSearch();
   const login = useLogin();
   const [forgotOpen, setForgotOpen] = useState(false);
+  /**
+   * Set when one address and password open an account in more than one
+   * company. The credentials are already proven at that point; all that is
+   * left is to say which door they open.
+   */
+  const [choices, setChoices] = useState<Array<{ id: string; name: string }> | null>(null);
 
   const form = useForm<LoginValues>({
     resolver: zodResolver(loginSchema),
     defaultValues: { email: "", password: "" },
   });
 
-  const onSubmit = form.handleSubmit(async (values) => {
+  const submit = async (values: LoginValues) => {
     try {
-      await login.mutateAsync(values);
+      const result = await login.mutateAsync(values);
+      if (needsChoice(result)) {
+        setChoices(result.organizations);
+        return;
+      }
       await navigate({ to: "/calendario" });
     } catch (error) {
+      setChoices(null);
       form.setError("root", {
         message: error instanceof ApiError ? error.message : t.app.genericError,
       });
     }
-  });
+  };
+
+  const onSubmit = form.handleSubmit(submit);
 
   return (
     <div className="flex min-h-dvh bg-background">
@@ -105,13 +118,41 @@ function LoginPage() {
             </Button>
           </form>
 
-          <button
-            type="button"
-            onClick={() => setForgotOpen(true)}
-            className="mt-5 text-label text-muted-foreground underline-offset-4 transition-colors hover:text-foreground hover:underline"
-          >
-            {t.auth.forgot}
-          </button>
+          {choices ? (
+            <div className="mt-6 space-y-2">
+              <p className="text-label text-muted-foreground">{t.auth.chooseOrganization}</p>
+              {choices.map((organization) => (
+                <Button
+                  key={organization.id}
+                  variant="outline"
+                  className="w-full justify-start"
+                  onClick={() => void submit({ ...form.getValues(), organizationId: organization.id })}
+                >
+                  <Building2 aria-hidden />
+                  {organization.name}
+                </Button>
+              ))}
+            </div>
+          ) : null}
+
+          <div className="mt-5 flex flex-wrap items-center justify-between gap-3">
+            <button
+              type="button"
+              onClick={() => setForgotOpen(true)}
+              className="text-label text-muted-foreground underline-offset-4 transition-colors hover:text-foreground hover:underline"
+            >
+              {t.auth.forgot}
+            </button>
+
+            {state?.signupEnabled ? (
+              <Link
+                to="/registrati"
+                className="text-label text-primary underline-offset-4 transition-colors hover:underline"
+              >
+                {t.auth.createOrganization}
+              </Link>
+            ) : null}
+          </div>
 
           <p className="mt-8 text-center text-label text-muted-foreground lg:hidden">
             © {new Date().getFullYear()} {company}

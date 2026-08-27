@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { CalendarClock, KeyRound, Mail, Plus, Trash2 } from "lucide-react";
+import { CalendarClock, KeyRound, Mail, Plus, RotateCcw, Trash2, UserMinus } from "lucide-react";
 import { useState } from "react";
 import { useForm, useWatch, type Control, type UseFormSetValue } from "react-hook-form";
 import { createUserSchema } from "@core/contracts";
@@ -9,13 +9,17 @@ import type { z } from "zod";
 import { ApiError } from "../../api/client";
 import { scheduleQuery } from "../../api/timesheet";
 import {
+  deletionPreview,
   usersQuery,
   useCreateUser,
+  useDeactivateUser,
   useDeleteUser,
+  useReactivateUser,
   useRemindUser,
   useResetUserPassword,
   useSaveSchedule,
   useUpdateUser,
+  type DeletionPreview,
   type ManagedUser,
 } from "../../api/users";
 import { ScheduleEditor } from "../../features/users/schedule-editor";
@@ -51,11 +55,31 @@ function UsersPage() {
   const [createOpen, setCreateOpen] = useState(false);
   const [editing, setEditing] = useState<ManagedUser | null>(null);
   const [scheduleFor, setScheduleFor] = useState<ManagedUser | null>(null);
+  const [toDeactivate, setToDeactivate] = useState<ManagedUser | null>(null);
   const [toDelete, setToDelete] = useState<ManagedUser | null>(null);
+  /**
+   * People who have left are out of the way by default — an employer with any
+   * history has more of them than of current staff — but never hidden outright,
+   * because their timesheets are still in the reports.
+   */
+  const [showInactive, setShowInactive] = useState(false);
+  const [preview, setPreview] = useState<DeletionPreview | null>(null);
 
+  const deactivate = useDeactivateUser();
+  const reactivate = useReactivateUser();
   const remove = useDeleteUser();
   const reset = useResetUserPassword();
   const remind = useRemindUser();
+
+  /** Asked for once, when the dialog opens, so the warning can name a number. */
+  const askToDelete = async (person: ManagedUser) => {
+    setPreview(null);
+    setToDelete(person);
+    setPreview(await deletionPreview(person.id).catch(() => null));
+  };
+
+  const visible = (users.data ?? []).filter((u) => showInactive || !u.deactivatedAt);
+  const inactiveCount = (users.data ?? []).filter((u) => u.deactivatedAt).length;
 
   const guard = async (action: () => Promise<unknown>, success: string) => {
     try {
@@ -73,10 +97,19 @@ function UsersPage() {
           <h2 className="text-display font-semibold tracking-[-0.02em]">{t.users.title}</h2>
           <p className="mt-0.5 text-label text-muted-foreground">{t.users.subtitle}</p>
         </div>
-        <Button onClick={() => setCreateOpen(true)}>
-          <Plus aria-hidden />
-          {t.users.new}
-        </Button>
+        <div className="flex items-center gap-3">
+          {inactiveCount > 0 ? (
+            <Checkbox
+              checked={showInactive}
+              onCheckedChange={setShowInactive}
+              label={t.users.showInactive(inactiveCount)}
+            />
+          ) : null}
+          <Button onClick={() => setCreateOpen(true)}>
+            <Plus aria-hidden />
+            {t.users.new}
+          </Button>
+        </div>
       </header>
 
       {users.isLoading ? (
@@ -95,8 +128,8 @@ function UsersPage() {
               </TR>
             </THead>
             <TBody>
-              {(users.data ?? []).map((person) => (
-                <TR key={person.id}>
+              {visible.map((person) => (
+                <TR key={person.id} className={person.deactivatedAt ? "opacity-60" : undefined}>
                   <TD>
                     <button
                       type="button"
@@ -111,9 +144,13 @@ function UsersPage() {
                     </button>
                   </TD>
                   <TD>
-                    <Badge tone={person.role === "ADMIN" ? "primary" : "neutral"}>
-                      {t.users.roles[person.role]}
-                    </Badge>
+                    {person.deactivatedAt ? (
+                      <Badge tone="warning">{t.users.inactive}</Badge>
+                    ) : (
+                      <Badge tone={person.role === "ADMIN" ? "primary" : "neutral"}>
+                        {t.users.roles[person.role]}
+                      </Badge>
+                    )}
                   </TD>
                   <TD>
                     <div className="flex flex-wrap gap-1">
@@ -126,49 +163,81 @@ function UsersPage() {
                   <TD numeric>{person.overtimeHours ?? 0}</TD>
                   <TD className="text-right">
                     <div className="flex justify-end gap-0.5">
-                      <Button
-                        size="icon"
-                        variant="ghost"
-                        title={t.users.schedule}
-                        onClick={() => setScheduleFor(person)}
-                      >
-                        <CalendarClock aria-hidden />
-                      </Button>
-                      <Button
-                        size="icon"
-                        variant="ghost"
-                        title={t.users.resetByEmail}
-                        onClick={() =>
-                          guard(() => reset.mutateAsync({ id: person.id }), t.users.resetSent)
-                        }
-                      >
-                        <KeyRound aria-hidden />
-                      </Button>
-                      <Button
-                        size="icon"
-                        variant="ghost"
-                        title={t.users.remind}
-                        onClick={async () => {
-                          try {
-                            const result = await remind.mutateAsync(person.id);
-                            toast.success(result.sent ? t.users.reminded : t.users.nothingToRemind);
-                          } catch (error) {
-                            toast.error(error instanceof ApiError ? error.message : t.app.genericError);
-                          }
-                        }}
-                      >
-                        <Mail aria-hidden />
-                      </Button>
-                      <Button
-                        size="icon"
-                        variant="ghost"
-                        className="text-destructive"
-                        title={t.app.delete}
-                        disabled={person.id === currentUser.id}
-                        onClick={() => setToDelete(person)}
-                      >
-                        <Trash2 aria-hidden />
-                      </Button>
+                      {person.deactivatedAt ? (
+                        <>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() =>
+                              guard(() => reactivate.mutateAsync(person.id), t.users.reactivated)
+                            }
+                          >
+                            <RotateCcw aria-hidden />
+                            {t.users.reactivate}
+                          </Button>
+                          {/* Only reachable once deactivated, and only ever
+                              after the dialog has said what it destroys. */}
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            className="text-destructive"
+                            title={t.users.deleteForever}
+                            aria-label={t.users.deleteForever}
+                            onClick={() => void askToDelete(person)}
+                          >
+                            <Trash2 aria-hidden />
+                          </Button>
+                        </>
+                      ) : (
+                        <>
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            title={t.users.schedule}
+                            aria-label={t.users.schedule}
+                            onClick={() => setScheduleFor(person)}
+                          >
+                            <CalendarClock aria-hidden />
+                          </Button>
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            title={t.users.resetByEmail}
+                            aria-label={t.users.resetByEmail}
+                            onClick={() =>
+                              guard(() => reset.mutateAsync({ id: person.id }), t.users.resetSent)
+                            }
+                          >
+                            <KeyRound aria-hidden />
+                          </Button>
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            title={t.users.remind}
+                            aria-label={t.users.remind}
+                            onClick={async () => {
+                              try {
+                                const result = await remind.mutateAsync(person.id);
+                                toast.success(result.sent ? t.users.reminded : t.users.nothingToRemind);
+                              } catch (error) {
+                                toast.error(error instanceof ApiError ? error.message : t.app.genericError);
+                              }
+                            }}
+                          >
+                            <Mail aria-hidden />
+                          </Button>
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            title={t.users.deactivate}
+                            aria-label={t.users.deactivate}
+                            disabled={person.id === currentUser.id}
+                            onClick={() => setToDeactivate(person)}
+                          >
+                            <UserMinus aria-hidden />
+                          </Button>
+                        </>
+                      )}
                     </div>
                   </TD>
                 </TR>
@@ -183,11 +252,35 @@ function UsersPage() {
       {scheduleFor ? <ScheduleDialog user={scheduleFor} onClose={() => setScheduleFor(null)} /> : null}
 
       <ConfirmDialog
+        open={toDeactivate !== null}
+        onOpenChange={(open) => !open && setToDeactivate(null)}
+        title={t.users.deactivate}
+        description={toDeactivate ? t.users.deactivateConfirm(toDeactivate.name) : ""}
+        confirmLabel={t.users.deactivate}
+        loading={deactivate.isPending}
+        onConfirm={async () => {
+          if (!toDeactivate) return;
+          await guard(() => deactivate.mutateAsync(toDeactivate.id), t.users.deactivated);
+          setToDeactivate(null);
+        }}
+      />
+
+      {/* The count comes from the server before the dialog opens, so the
+          warning names what is actually there rather than a generic threat. */}
+      <ConfirmDialog
         open={toDelete !== null}
         onOpenChange={(open) => !open && setToDelete(null)}
-        title={t.app.delete}
-        description={toDelete ? t.users.deleteConfirm(toDelete.name) : ""}
-        confirmLabel={t.app.delete}
+        title={t.users.deleteForever}
+        description={
+          toDelete
+            ? t.users.deleteConfirm(
+                toDelete.name,
+                preview?.timeEntries ?? 0,
+                preview?.leaveRequests ?? 0,
+              )
+            : ""
+        }
+        confirmLabel={t.users.deleteForever}
         destructive
         loading={remove.isPending}
         onConfirm={async () => {

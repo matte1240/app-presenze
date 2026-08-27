@@ -1,13 +1,16 @@
 import { createFileRoute, Link, Outlet, redirect, useRouterState } from "@tanstack/react-router";
 import {
+  Building2,
   CalendarDays,
   ChartColumn,
   ClipboardList,
   Clock3,
+  CreditCard,
   LogOut,
   Menu,
   Moon,
   Server,
+  ShieldAlert,
   Sun,
   User,
   Users,
@@ -15,6 +18,8 @@ import {
 } from "lucide-react";
 import { useState, type ComponentType } from "react";
 import { sessionQuery, useLogout, type CurrentUser } from "../api/session";
+import { stopImpersonation } from "../api/platform";
+import { SubscriptionBanner } from "../features/billing/status-banner";
 import { t } from "../i18n/it";
 import { cn } from "../ui/cn";
 import { Avatar, Button } from "../ui/primitives";
@@ -24,7 +29,11 @@ export const Route = createFileRoute("/_app")({
   beforeLoad: async ({ context }) => {
     const session = await context.queryClient.ensureQueryData(sessionQuery);
     if (!session) throw redirect({ to: "/", search: { expired: true } });
-    return { user: session.user };
+    return {
+      user: session.user,
+      organization: session.organization,
+      impersonated: session.impersonated,
+    };
   },
   component: AppShell,
 });
@@ -42,6 +51,8 @@ const NAV: NavItem[] = [
   { to: "/richieste", label: t.nav.requests, icon: ClipboardList },
   { to: "/report", label: t.nav.reports, icon: ChartColumn },
   { to: "/utenti", label: t.nav.users, icon: Users, adminOnly: true },
+  { to: "/organizzazione", label: t.nav.organization, icon: Building2, adminOnly: true },
+  { to: "/abbonamento", label: t.nav.billing, icon: CreditCard, adminOnly: true },
   { to: "/manutenzione", label: t.nav.maintenance, icon: Server, adminOnly: true },
   { to: "/profilo", label: t.nav.profile, icon: User },
 ];
@@ -54,7 +65,7 @@ function visibleTo(user: CurrentUser) {
 }
 
 function AppShell() {
-  const { user } = Route.useRouteContext();
+  const { user, organization, impersonated } = Route.useRouteContext();
   const [drawerOpen, setDrawerOpen] = useState(false);
   const items = visibleTo(user);
   const pathname = useRouterState({ select: (s) => s.location.pathname });
@@ -88,7 +99,27 @@ function AppShell() {
           <UserMenu user={user} />
         </header>
 
+        {/* Not dismissible, and above everything: somebody from support being
+            inside this account is not a detail to tuck away. */}
+        {impersonated ? (
+          <div className="flex flex-wrap items-center gap-2 bg-warning px-4 py-2 text-label text-warning-foreground">
+            <ShieldAlert className="size-4 shrink-0" aria-hidden />
+            <span className="flex-1">{t.platform.impersonationBanner}</span>
+            <button
+              type="button"
+              className="underline underline-offset-4"
+              onClick={async () => {
+                await stopImpersonation();
+                window.location.assign("/piattaforma/organizzazioni");
+              }}
+            >
+              {t.platform.exitImpersonation}
+            </button>
+          </div>
+        ) : null}
+
         <main className="mx-auto w-full max-w-[88rem] p-4 sm:px-6 sm:py-5">
+          <SubscriptionBanner organization={organization} isAdmin={user.role === "ADMIN"} />
           <Outlet />
         </main>
       </div>

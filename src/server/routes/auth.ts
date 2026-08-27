@@ -1,5 +1,5 @@
-import { createHash, randomBytes, randomUUID } from "node:crypto";
-import { and, eq, isNull, sql } from "drizzle-orm";
+import { createHash, randomBytes } from "node:crypto";
+import { and, eq, isNull } from "drizzle-orm";
 import { Hono, type Context } from "hono";
 import { deleteCookie, getCookie, setCookie } from "hono/cookie";
 import {
@@ -7,8 +7,9 @@ import {
   forgotPasswordSchema,
   loginSchema,
   resetPasswordSchema,
-  setupSchema,
+  signupSchema,
 } from "@core/contracts";
+import { accessLevel, PLANS, trialDaysLeft } from "@core/plans";
 import { requireUser, sessionOf } from "../auth/guards";
 import { hashPassword, verifyPassword } from "../auth/password";
 import {
@@ -18,14 +19,17 @@ import {
   revokeSession,
   SESSION_COOKIE,
 } from "../auth/session";
-import { db } from "../db/client";
-import { passwordResets, users } from "../db/schema";
+import { db, platformDb } from "../db/client";
+import { currentOrgId } from "../db/context";
+import { organizations, type OrganizationRow } from "../db/platform-schema";
+import { passwordResets, users, type UserRow } from "../db/schema";
+import { runInTenant } from "../db/tenant";
 import { env, isProduction } from "../env";
 import type { AppEnv } from "../http/app-env";
 import { conflict, forbidden, invalid, unauthenticated } from "../http/errors";
 import { rateLimit } from "../http/rate-limit";
 import { validate } from "../http/validate";
-import { createDefaultSchedules } from "../services/schedules";
+import { createOrganization, seatsUsed } from "../services/organizations";
 import { sendPasswordResetEmail } from "../services/email";
 
 const RESET_TTL_MS = 60 * 60 * 1000;
@@ -47,70 +51,139 @@ function issueCookie(c: Context, token: string) {
 
 async function issueResetToken(userId: string, ttlMs: number): Promise<string> {
   const token = randomBytes(32).toString("base64url");
+  const organizationId = currentOrgId();
   // Any earlier link stops working the moment a new one is issued.
-  await db.delete(passwordResets).where(eq(passwordResets.userId, userId));
+  await db
+    .delete(passwordResets)
+    .where(and(eq(passwordResets.organizationId, organizationId), eq(passwordResets.userId, userId)));
   await db.insert(passwordResets).values({
     id: tokenDigest(token),
+    organizationId,
     userId,
     expiresAt: new Date(Date.now() + ttlMs),
   });
   return token;
 }
 
+/**
+ * Every account with this address, in whichever companies hold one.
+ *
+ * This is the one query in the application that is allowed to look across all
+ * of them, and it is why the platform connection exists: at sign-in there is no
+ * organization yet to be inside of. It reads nothing but what is needed to
+ * check a password.
+ */
+async function accountsFor(email: string) {
+  const rows = await platformDb
+    .select({ user: users, organization: organizations })
+    .from(users)
+    .innerJoin(organizations, eq(organizations.id, users.organizationId))
+    // A deactivated account is not an account: it cannot be signed into, and
+    // it cannot be resolved for a password reset either.
+    .where(and(eq(users.email, email.toLowerCase()), isNull(users.deactivatedAt)));
+  return rows;
+}
+
+export function organizationSummary(organization: OrganizationRow, seats: number) {
+  const now = new Date();
+  return {
+    id: organization.id,
+    name: organization.name,
+    slug: organization.slug,
+    companyName: organization.companyName ?? organization.name,
+    plan: organization.plan,
+    planName: PLANS[organization.plan].name,
+    status: organization.status,
+    access: accessLevel({
+      status: organization.status,
+      trialEndsAt: organization.trialEndsAt,
+      pastDueSince: organization.pastDueSince,
+      now,
+    }),
+    trialEndsAt: organization.trialEndsAt?.toISOString() ?? null,
+    trialDaysLeft: organization.status === "TRIAL" ? trialDaysLeft(organization.trialEndsAt, now) : null,
+    seatsUsed: seats,
+    seatLimit: PLANS[organization.plan].maxEmployees,
+  };
+}
+
 export const authRoutes = new Hono<AppEnv>()
-  /** Whether the instance still needs its first administrator. */
-  .get("/state", async (c) => {
-    const [row] = await db.select({ count: sql<number>`count(*)` }).from(users);
-    return c.json({
-      needsSetup: (row?.count ?? 0) === 0,
-      appName: env.APP_NAME,
-      companyName: env.COMPANY_NAME,
-    });
-  })
+  /** What the sign-in screen needs before anyone has identified themselves. */
+  .get("/state", (c) =>
+    c.json({ appName: env.APP_NAME, signupEnabled: env.SIGNUP_ENABLED }),
+  )
 
-  .post("/setup", validate("json", setupSchema), async (c) => {
-    const input = c.req.valid("json");
+  .post(
+    "/signup",
+    rateLimit("signup", 5, 60 * 60_000),
+    validate("json", signupSchema),
+    async (c) => {
+      if (!env.SIGNUP_ENABLED) {
+        throw forbidden("La registrazione libera non è attiva su questa installazione");
+      }
 
-    // Hashing first keeps the transaction synchronous, which is what makes the
-    // count and the insert atomic: two simultaneous requests cannot both
-    // decide they are the first administrator.
-    const passwordHash = await hashPassword(input.password);
-    const userId = randomUUID();
+      const input = c.req.valid("json");
+      const email = input.email.toLowerCase();
 
-    const created = db.transaction((tx) => {
-      const [row] = tx.select({ count: sql<number>`count(*)` }).from(users).all();
-      if ((row?.count ?? 0) > 0) return false;
-      tx.insert(users)
-        .values({
-          id: userId,
-          name: input.name,
-          email: input.email.toLowerCase(),
-          passwordHash,
-          role: "ADMIN",
-        })
-        .run();
-      return true;
-    });
-    if (!created) throw forbidden("La configurazione iniziale è già stata completata");
+      // Not an oracle in the way the sign-in form is: an address that already
+      // has an account somewhere still gets a clear answer here, because the
+      // alternative is a person who cannot tell why nothing happened. The rate
+      // limit above is what makes enumerating addresses impractical.
+      const existing = await accountsFor(email);
+      if (existing.length > 0) {
+        throw conflict("Questo indirizzo ha già un account: accedi invece di registrarti");
+      }
 
-    await createDefaultSchedules(userId);
+      const { organization, adminId } = await createOrganization({
+        organizationName: input.organizationName,
+        adminName: input.name,
+        adminEmail: email,
+        adminPassword: input.password,
+      });
 
-    const token = await createSession(userId, c.req.header("user-agent"));
-    issueCookie(c, token);
-    return c.json({ ok: true }, 201);
-  })
+      issueCookie(c, await createSession(organization.id, adminId, c.req.header("user-agent")));
+      return c.json({ ok: true, organization: { id: organization.id, name: organization.name } }, 201);
+    },
+  )
 
   .post("/login", rateLimit("login", 8, 15 * 60_000), validate("json", loginSchema), async (c) => {
-    const { email, password } = c.req.valid("json");
-    const [user] = await db.select().from(users).where(eq(users.email, email.toLowerCase())).limit(1);
+    const { email, password, organizationId } = c.req.valid("json");
+
+    const candidates = await accountsFor(email);
+    const scoped = organizationId
+      ? candidates.filter((row) => row.organization.id === organizationId)
+      : candidates;
 
     // An unknown address still pays for one verification, so the response time
     // does not reveal which accounts exist. The decoy hash is computed once.
-    const ok = await verifyPassword(password, user?.passwordHash ?? (await decoyHash()));
+    if (scoped.length === 0) {
+      await verifyPassword(password, await decoyHash());
+      throw unauthenticated("Email o password non corretti");
+    }
 
-    if (!user || !ok) throw unauthenticated("Email o password non corretti");
+    const matches: Array<{ user: UserRow; organization: OrganizationRow }> = [];
+    for (const row of scoped) {
+      if (await verifyPassword(password, row.user.passwordHash)) matches.push(row);
+    }
 
-    issueCookie(c, await createSession(user.id, c.req.header("user-agent")));
+    if (matches.length === 0) throw unauthenticated("Email o password non corretti");
+
+    // The same person, same password, in two companies. Asking which one is
+    // the only honest move; the list discloses nothing the password has not
+    // already unlocked.
+    if (matches.length > 1) {
+      return c.json({
+        ok: false,
+        needsOrganizationChoice: true,
+        organizations: matches.map((m) => ({ id: m.organization.id, name: m.organization.name })),
+      });
+    }
+
+    const chosen = matches[0]!;
+    issueCookie(
+      c,
+      await createSession(chosen.organization.id, chosen.user.id, c.req.header("user-agent")),
+    );
     return c.json({ ok: true });
   })
 
@@ -126,10 +199,17 @@ export const authRoutes = new Hono<AppEnv>()
     validate("json", forgotPasswordSchema),
     async (c) => {
       const { email } = c.req.valid("json");
-      const [user] = await db.select().from(users).where(eq(users.email, email.toLowerCase())).limit(1);
 
-      if (user) {
-        await sendPasswordResetEmail(user.email, await issueResetToken(user.id, RESET_TTL_MS));
+      // One link per account. Somebody who keeps the books for two companies
+      // has two passwords to forget, and the email says which is which.
+      for (const { user, organization } of await accountsFor(email)) {
+        await runInTenant(organization, async () => {
+          await sendPasswordResetEmail(
+            user.email,
+            await issueResetToken(user.id, RESET_TTL_MS),
+            organization.name,
+          );
+        });
       }
 
       // Always the same answer: this endpoint is not an address oracle.
@@ -143,7 +223,10 @@ export const authRoutes = new Hono<AppEnv>()
     validate("json", resetPasswordSchema),
     async (c) => {
       const { token, password } = c.req.valid("json");
-      const [reset] = await db
+
+      // The token is the only thing identifying the tenant here, so the lookup
+      // has to happen before one is open.
+      const [reset] = await platformDb
         .select()
         .from(passwordResets)
         .where(and(eq(passwordResets.id, tokenDigest(token)), isNull(passwordResets.usedAt)))
@@ -154,17 +237,22 @@ export const authRoutes = new Hono<AppEnv>()
       }
 
       const passwordHash = await hashPassword(password);
-      await db.update(users).set({ passwordHash, updatedAt: new Date() }).where(eq(users.id, reset.userId));
-      await db.update(passwordResets).set({ usedAt: new Date() }).where(eq(passwordResets.id, reset.id));
-      // Anyone holding an old session loses it, which is the point of a reset.
-      await revokeAllSessions(reset.userId);
+      await runInTenant(reset.organizationId, async () => {
+        await db
+          .update(users)
+          .set({ passwordHash, updatedAt: new Date() })
+          .where(and(eq(users.organizationId, reset.organizationId), eq(users.id, reset.userId)));
+        await db.update(passwordResets).set({ usedAt: new Date() }).where(eq(passwordResets.id, reset.id));
+        // Anyone holding an old session loses it, which is the point of a reset.
+        await revokeAllSessions(reset.userId);
+      });
 
       return c.json({ ok: true });
     },
   )
 
-  .get("/me", requireUser, (c) => {
-    const { user, idleExpiresAt } = sessionOf(c);
+  .get("/me", requireUser, async (c) => {
+    const { user, organization, idleExpiresAt, impersonatedBy } = sessionOf(c);
     return c.json({
       user: {
         id: user.id,
@@ -177,6 +265,9 @@ export const authRoutes = new Hono<AppEnv>()
         /** The calendar uses this so it never reports gaps predating the hire. */
         createdAt: user.createdAt.toISOString(),
       },
+      organization: organizationSummary(organization, await seatsUsed()),
+      /** Drives the banner: support being in your account is not a secret. */
+      impersonated: Boolean(impersonatedBy),
       /** Drives the idle warning in the SPA; the server remains the authority. */
       idleExpiresAt: idleExpiresAt.toISOString(),
     });
@@ -196,11 +287,11 @@ export const authRoutes = new Hono<AppEnv>()
     await db
       .update(users)
       .set({ passwordHash: await hashPassword(newPassword), updatedAt: new Date() })
-      .where(eq(users.id, user.id));
+      .where(and(eq(users.organizationId, currentOrgId()), eq(users.id, user.id)));
     await revokeAllSessions(user.id);
     deleteCookie(c, SESSION_COOKIE, { path: "/" });
 
     return c.json({ ok: true });
   });
 
-export { issueResetToken, issueCookie };
+export { issueCookie, issueResetToken };

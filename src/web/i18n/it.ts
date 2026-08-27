@@ -50,14 +50,195 @@ export const t = {
     welcome: "Bentornato",
     welcomeHint: "Accedi al tuo account per continuare.",
     signInHint: "Inserisci le tue credenziali per continuare.",
+
+    chooseOrganization: "Il tuo account esiste in più organizzazioni. Con quale vuoi entrare?",
+    createOrganization: "Crea un'organizzazione",
+    signupTitle: "Crea la tua organizzazione",
+    signupHint: "Bastano un minuto e nessuna carta di credito.",
+    signupAction: "Inizia la prova gratuita",
+    organizationName: "Nome dell'organizzazione",
+    yourName: "Il tuo nome",
+    alreadyRegistered: "Hai già un account?",
   },
 
-  setup: {
-    title: "Configurazione iniziale",
-    subtitle: "Crea il primo account amministratore.",
-    name: "Nome e cognome",
-    submit: "Crea amministratore",
-    done: "Amministratore creato.",
+  platform: {
+    title: "Back-office",
+    loginHint: "Area riservata alla gestione delle organizzazioni clienti.",
+    organizations: "Organizzazioni",
+    organizationsHint: "Tutte le aziende clienti su questa installazione.",
+    all: "Elenco",
+    organization: "Organizzazione",
+    newOrganization: "Nuova organizzazione",
+    newOrganizationHint:
+      "L'amministratore riceve un invito per impostare la password. Parte in prova gratuita.",
+    adminName: "Nome dell'amministratore",
+    adminEmail: "Email dell'amministratore",
+    inviteNotice: "Nessuna password viene impostata qui: l'accesso avviene solo tramite l'invito.",
+    createdInvited: "Organizzazione creata e invito inviato.",
+    createdNoEmail: "Organizzazione creata. L'email non è configurata: l'invito non è partito.",
+    impersonate: "Entra come amministratore",
+    export: "Esporta i dati",
+    expiry: "Scadenza",
+    actions: "Azioni",
+    saved: "Modifica salvata.",
+    audit: "Registro delle operazioni",
+    when: "Quando",
+    who: "Chi",
+    what: "Cosa",
+    admins: "Amministratori",
+    adminsHint: "Chi può entrare in questo back-office.",
+    newAdmin: "Nuovo amministratore",
+    newAdminHint:
+      "Riceve una password temporanea che dovrà sostituire al primo accesso. Consegnagliela di persona, non via email.",
+    temporaryPassword: "Password temporanea",
+    temporaryPasswordHint: "Vale solo per il primo accesso.",
+    adminCreated: "Amministratore creato.",
+    adminDeleted: "Amministratore eliminato.",
+    deleteAdminConfirm: (email: string) => `Eliminare l'accesso di ${email} al back-office?`,
+    pendingPassword: "Password da scegliere",
+    active: "Attivo",
+    myPassword: "La mia password",
+    passwordChanged: "Password aggiornata.",
+    mustChangeNotice:
+      "La password attuale è stata scelta da qualcun altro. Sostituiscila per usare il back-office.",
+
+    totalOrganizations: "Organizzazioni",
+    totalSeats: "Persone totali",
+    anyStatus: "Tutti gli stati",
+    backToList: "Torna all'elenco",
+    summary: "Riepilogo",
+    people: "Utenti dell'organizzazione",
+    customer: "Cliente Stripe",
+    since: "Cliente dal",
+    closeAccount: "Chiudi l'account",
+    closeAccountConfirm: (name: string, users: number, entries: number) =>
+      `Chiudere definitivamente ${name}? Spariranno ${users} ` +
+      `${users === 1 ? "persona" : "persone"} e ${entries} ` +
+      `${entries === 1 ? "giornata" : "giornate"} di cartellino. ` +
+      "Scarica prima l'esportazione: l'operazione non è reversibile.",
+    accountClosed: "Organizzazione chiusa.",
+    exitImpersonation: "Torna al back-office",
+
+    impersonationBanner:
+      "Stai operando dentro questa organizzazione dal back-office. Ogni azione è registrata.",
+
+    backups: "Backup",
+    backupsHint: "Copie dell'intero database, su storage S3, indipendenti dall'esportazione di una singola azienda.",
+    backupsNotConfigured:
+      "Lo storage S3 non è configurato su questa installazione: nessun backup può essere creato o ripristinato da qui.",
+    backupsSchedule: (cron: string, retentionDays: number, minCount: number) =>
+      `Pianificazione automatica: ${cron}. Conservati almeno ${minCount} backup, e comunque quelli più recenti di ${retentionDays} giorni.`,
+    newBackup: "Crea backup ora",
+    backupCreated: "Backup creato.",
+    pruneNow: "Applica la conservazione",
+    pruned: (n: number) => (n === 0 ? "Nessun backup da rimuovere." : `${n} backup rimossi.`),
+    filename: "File",
+    size: "Dimensione",
+    created: "Creato",
+    download: "Scarica",
+    restore: "Ripristina",
+    deleteBackup: "Elimina",
+    backupDeleted: "Backup eliminato.",
+    deleteBackupConfirm: (filename: string) => `Eliminare definitivamente ${filename}?`,
+    noBackups: "Nessun backup ancora creato.",
+    restoreTitle: (filename: string) => `Ripristinare ${filename}?`,
+    restoreWarning:
+      "Sostituisce tutti i dati di tutte le organizzazioni con quelli di questo backup. Prima viene creata automaticamente una copia di sicurezza dello stato attuale, ma l'operazione resta distruttiva e non è annullabile dall'interfaccia.",
+    restoreTypeToConfirm: "Digita il nome del file per confermare",
+    restoreDone: (safetyBackup: string) =>
+      `Ripristino completato. La copia di sicurezza dello stato precedente è ${safetyBackup}.`,
+
+    orgBackups: "Backup di questa organizzazione",
+    orgBackupsHint:
+      "Utenti, orari, cartellino e richieste di questa sola azienda — lo stesso contenuto che scarica da Manutenzione, conservato qui.",
+    orgBackupsNotConfigured: "Lo storage S3 non è configurato su questa installazione.",
+    newOrgBackup: "Crea backup",
+    orgBackupCreated: "Backup creato.",
+    orgBackupDeleted: "Backup eliminato.",
+    deleteOrgBackupConfirm: (filename: string) => `Eliminare definitivamente ${filename}?`,
+    noOrgBackups: "Nessun backup ancora creato per questa organizzazione.",
+    restoreOrgTitle: (filename: string) => `Ripristinare ${filename}?`,
+    restoreOrgWarning:
+      "Sostituisce utenti, orari, cartellino e richieste di questa organizzazione con quelli di questo backup — non tocca le altre aziende, né il piano o l'abbonamento. Prima viene creata automaticamente una copia di sicurezza dello stato attuale. Il backup non contiene le password: ogni utente ripristinato riceve un'email per impostarne una nuova.",
+    restoreOrgDone: (usersRestored: number, emailed: number) =>
+      `Ripristino completato: ${usersRestored} ${usersRestored === 1 ? "utente" : "utenti"} ripristinat${usersRestored === 1 ? "o" : "i"}, ${emailed} ${emailed === 1 ? "email inviata" : "email inviate"} per la nuova password.`,
+  },
+
+  billing: {
+    title: "Abbonamento",
+    subtitle: "Piano, utenti e fatturazione.",
+    plan: "Piano",
+    status: "Stato",
+    seats: "Persone",
+    seatsOf: (used: number, limit: number | null) =>
+      limit === null ? `${used} (illimitate)` : `${used} di ${limit}`,
+    renewsOn: "Prossimo rinnovo",
+    trialEndsOn: "La prova finisce il",
+    statuses: {
+      TRIAL: "In prova",
+      ACTIVE: "Attivo",
+      PAST_DUE: "Pagamento non riuscito",
+      SUSPENDED: "Sospeso",
+      CANCELLED: "Disdetto",
+    } as const,
+    trialBanner: (days: number) =>
+      days === 0
+        ? "La prova gratuita finisce oggi."
+        : days === 1
+          ? "Ti resta un giorno di prova gratuita."
+          : `Ti restano ${days} giorni di prova gratuita.`,
+    readOnlyBanner:
+      "L'abbonamento non è attivo: puoi consultare ed esportare i dati, ma non registrarne di nuovi.",
+    pastDueBanner: "L'ultimo pagamento non è andato a buon fine. Aggiorna il metodo di pagamento.",
+    manage: "Gestisci l'abbonamento",
+    choosePlan: "Scegli un piano",
+    currentPlan: "Piano attuale",
+    switchTo: (plan: string) => `Passa a ${plan}`,
+    upToPeople: (n: number) => `Fino a ${n} persone`,
+    unlimitedPeople: "Persone illimitate",
+    tooSmall: "Hai troppe persone per questo piano",
+    checkoutDone: "Pagamento ricevuto. L'abbonamento si attiva entro pochi istanti.",
+    checkoutCancelled: "Pagamento annullato: non è stato addebitato nulla.",
+    cancelling: (date: string) => `L'abbonamento resta attivo fino al ${date} e poi non si rinnova.`,
+    notConfigured:
+      "I pagamenti online non sono configurati: piano e fatturazione sono gestiti fuori dall'applicazione.",
+
+    fiscal: "Dati di fatturazione",
+    legalName: "Ragione sociale",
+    address: "Indirizzo",
+    postalCode: "CAP",
+    city: "Città",
+    province: "Provincia",
+    vatNumber: "Partita IVA",
+    taxCode: "Codice fiscale",
+    sdiCode: "Codice destinatario (SDI)",
+    sdiHint: "Sette caratteri. In alternativa indica la PEC: serve almeno uno dei due.",
+    pec: "PEC",
+    billingEmail: "Email per la fatturazione",
+    billingEmailHint: "Dove mandiamo copia della fattura. Vuoto: si usa l'email dell'amministratore.",
+    profileSaved: "Dati di fatturazione salvati.",
+    profileSavedSynced: "Dati di fatturazione salvati e sincronizzati con Stripe.",
+    invoices: "Fatture",
+    noInvoices: "Nessuna fattura emessa",
+    invoiceNumber: "Numero",
+    amount: "Importo",
+    openInvoice: "Apri",
+  },
+
+  organization: {
+    title: "Organizzazione",
+    subtitle: "Dati dell'azienda, fuso orario e calendario.",
+    details: "Dati e calendario",
+    name: "Nome dell'organizzazione",
+    companyName: "Ragione sociale",
+    companyNameHint: "Compare nella schermata di accesso. Vuoto: si usa il nome sopra.",
+    timezone: "Fuso orario",
+    timezoneHint: "Decide quando cambia il giorno per i cartellini.",
+    patronDays: "Festività patronali",
+    patronDaysHint: "Formato MM-DD, separate da virgola. Le undici festività nazionali sono già incluse.",
+    recalcNotice:
+      "Il calendario vale per le giornate registrate d'ora in avanti. Per applicarlo a un mese già compilato, usa il ricalcolo dalla scheda dell'utente.",
+    saved: "Impostazioni salvate.",
   },
 
   nav: {
@@ -65,6 +246,8 @@ export const t = {
     requests: "Richieste",
     reports: "Report",
     users: "Utenti",
+    organization: "Organizzazione",
+    billing: "Abbonamento",
     maintenance: "Manutenzione",
     profile: "Profilo",
     overview: "Riepilogo",
@@ -169,9 +352,25 @@ export const t = {
     created: "Utente creato.",
     invited: "Utente creato: gli è stato inviato un link per impostare la password.",
     updated: "Utente aggiornato.",
-    removed: "Utente eliminato.",
-    deleteConfirm: (name: string) =>
-      `Eliminare ${name}? Verranno rimossi anche il cartellino e le richieste.`,
+    removed: "Utente eliminato definitivamente.",
+
+    inactive: "Disattivato",
+    showInactive: (n: number) =>
+      n === 1 ? "Mostra 1 disattivato" : `Mostra ${n} disattivati`,
+    deactivate: "Disattiva",
+    deactivated: "Utente disattivato.",
+    deactivateConfirm: (name: string) =>
+      `Disattivare ${name}? Non potrà più accedere e libererà un posto del piano, ` +
+      "ma il suo cartellino resta e continua a comparire nei report.",
+    reactivate: "Riattiva",
+    reactivated: "Utente riattivato.",
+    deleteForever: "Elimina definitivamente",
+    // Nothing generic here on purpose: the numbers come from the server before
+    // the dialog opens, so the warning says what is actually about to be lost.
+    deleteConfirm: (name: string, entries: number, requests: number) =>
+      `Eliminare definitivamente ${name}? Spariranno ${entries} ` +
+      `${entries === 1 ? "giornata" : "giornate"} di cartellino e ${requests} ` +
+      `${requests === 1 ? "richiesta" : "richieste"}. L'operazione non è reversibile.`,
     resetPassword: "Reimposta password",
     resetByEmail: "Invia link via email",
     resetManually: "Imposta una password",
@@ -191,26 +390,29 @@ export const t = {
 
   maintenance: {
     title: "Manutenzione",
-    subtitle: "Backup e ripristino del database.",
-    backups: "Backup",
-    createBackup: "Crea backup",
-    created: "Backup creato.",
-    download: "Scarica",
-    restore: "Ripristina",
-    restoreTitle: "Ripristina da un backup",
-    restoreWarning:
-      "Il database attuale verrà sostituito. Ne viene salvata comunque una copia di sicurezza prima di procedere.",
-    restoreDone: (copy: string) => `Database ripristinato. Copia precedente salvata come ${copy}.`,
-    chooseFile: "Scegli un file .db",
-    size: "Dimensione",
-    date: "Data",
-    empty: "Nessun backup",
+    subtitle: "I tuoi dati, quando ti servono altrove.",
+    export: "Esportazione dati",
+    exportAction: "Esporta in JSON",
+    exportHint:
+      "Scarica utenti, orari contrattuali, cartellini e richieste in un unico file JSON. Le password non sono incluse.",
+    exportDone: "Esportazione completata.",
+    backupNotice:
+      "Il backup del database è gestito dal server e non richiede nulla da parte tua.",
   },
 
   profile: {
     title: "Profilo",
     subtitle: "I tuoi dati e la password.",
     changePassword: "Cambia password",
+    saved: "Profilo aggiornato.",
+    emailNeedsPassword: "L'email è la tua chiave d'accesso: confermala con la password attuale.",
+    sessions: "Accessi attivi",
+    closeOthers: "Chiudi gli altri",
+    sessionsClosed: (n: number) =>
+      n === 1 ? "Chiuso 1 accesso." : `Chiusi ${n} accessi.`,
+    thisDevice: "Questo dispositivo",
+    unknownDevice: "Dispositivo sconosciuto",
+    support: "Assistenza",
     missingDays: "Giornate da compilare",
     missingDaysNone: "Il tuo cartellino è in regola.",
     missingEditable: "Puoi ancora compilarle",

@@ -1,17 +1,32 @@
 import { randomUUID } from "node:crypto";
-import { eq, sql } from "drizzle-orm";
+import { and, count, desc, eq, ne, sql } from "drizzle-orm";
 import { Hono } from "hono";
+import { getCookie } from "hono/cookie";
 import type { Weekday } from "@core/date";
-import { adminResetPasswordSchema, createUserSchema, updateUserSchema, weekSchedulePayloadSchema } from "@core/contracts";
+import {
+  adminResetPasswordSchema,
+  createUserSchema,
+  updateProfileSchema,
+  updateUserSchema,
+  weekSchedulePayloadSchema,
+} from "@core/contracts";
 import type { DaySchedule } from "@core/schedule";
 import { toClock, type Span } from "@core/time";
-import { requireAdmin, requireUser, sessionOf } from "../auth/guards";
-import { hashPassword } from "../auth/password";
-import { revokeAllSessions } from "../auth/session";
+import { seatsAvailable, smallestPlanFor, PLANS } from "@core/plans";
+import {
+  orgOf,
+  requireActiveSubscription,
+  requireAdmin,
+  requireUser,
+  sessionOf,
+} from "../auth/guards";
+import { hashPassword, verifyPassword } from "../auth/password";
+import { revokeAllSessions, sessionKeyFor, SESSION_COOKIE } from "../auth/session";
 import { db } from "../db/client";
-import { timeEntries, users } from "../db/schema";
+import { currentOrgId } from "../db/context";
+import { leaveRequests, sessions, timeEntries, users } from "../db/schema";
 import type { AppEnv } from "../http/app-env";
-import { conflict, forbidden, notFound } from "../http/errors";
+import { conflict, forbidden, invalid, notFound } from "../http/errors";
 import { validate } from "../http/validate";
 import { issueResetToken } from "./auth";
 import {
@@ -25,6 +40,7 @@ import {
   scheduleRowsOf,
   weekScheduleOf,
 } from "../services/schedules";
+import { emailTaken, seatsUsed } from "../services/organizations";
 import { missingDaysFor } from "../services/timesheet";
 
 const WELCOME_TTL_MS = 24 * 60 * 60 * 1000;
@@ -37,11 +53,21 @@ const publicUser = {
   canWorkSunday: users.canWorkSunday,
   has104: users.has104,
   hasPaternity: users.hasPaternity,
+  deactivatedAt: users.deactivatedAt,
   createdAt: users.createdAt,
 };
 
+/**
+ * Not found, never forbidden, for an id belonging to another company: a 403
+ * would confirm that the id exists, which is a thing about someone else's data
+ * that this caller has no business learning.
+ */
 async function mustExist(id: string) {
-  const [user] = await db.select().from(users).where(eq(users.id, id)).limit(1);
+  const [user] = await db
+    .select()
+    .from(users)
+    .where(and(eq(users.organizationId, currentOrgId()), eq(users.id, id)))
+    .limit(1);
   if (!user) throw notFound("Utente inesistente");
   return user;
 }
@@ -63,12 +89,93 @@ export const meRoutes = new Hono<AppEnv>()
     const session = sessionOf(c);
     const week = await weekScheduleOf(session.user.id);
     return c.json(await missingDaysFor(session.user.id, week));
+  })
+
+  /**
+   * Your own name and address.
+   *
+   * The address is the key you sign in with, so changing it asks for the
+   * current password — the same bar as changing the password itself. Changing
+   * only the name does not.
+   */
+  .patch("/", validate("json", updateProfileSchema), async (c) => {
+    const { user } = sessionOf(c);
+    const { name, email, currentPassword } = c.req.valid("json");
+    const nextEmail = email.toLowerCase();
+
+    if (nextEmail !== user.email) {
+      if (!currentPassword || !(await verifyPassword(currentPassword, user.passwordHash))) {
+        throw invalid("Per cambiare l'email serve la password attuale");
+      }
+      if (await emailTaken(nextEmail, user.id)) {
+        throw conflict("Esiste già un utente con questa email");
+      }
+    }
+
+    const [updated] = await db
+      .update(users)
+      .set({ name, email: nextEmail, updatedAt: new Date() })
+      .where(and(eq(users.organizationId, currentOrgId()), eq(users.id, user.id)))
+      .returning(publicUser);
+
+    return c.json({ user: updated });
+  })
+
+  /**
+   * Where this account is signed in.
+   *
+   * Somewhere to notice a session you do not recognise, and end it, without
+   * having to change your password to do it.
+   */
+  .get("/sessions", async (c) => {
+    const { user } = sessionOf(c);
+    const currentKey = sessionKeyFor(getCookie(c, SESSION_COOKIE) ?? "");
+
+    const rows = await db
+      .select()
+      .from(sessions)
+      .where(and(eq(sessions.organizationId, currentOrgId()), eq(sessions.userId, user.id)))
+      .orderBy(desc(sessions.lastSeenAt));
+
+    return c.json({
+      sessions: rows.map((row) => ({
+        // Never the id itself: it is the digest of a live cookie.
+        id: row.id.slice(0, 8),
+        current: row.id === currentKey,
+        userAgent: row.userAgent,
+        lastSeenAt: row.lastSeenAt.toISOString(),
+        createdAt: row.createdAt.toISOString(),
+        impersonated: Boolean(row.impersonatedBy),
+      })),
+    });
+  })
+
+  /** Ends every session but the one asking. */
+  .delete("/sessions", async (c) => {
+    const { user } = sessionOf(c);
+    const currentKey = sessionKeyFor(getCookie(c, SESSION_COOKIE) ?? "");
+
+    const removed = await db
+      .delete(sessions)
+      .where(
+        and(
+          eq(sessions.organizationId, currentOrgId()),
+          eq(sessions.userId, user.id),
+          ne(sessions.id, currentKey),
+        ),
+      )
+      .returning({ id: sessions.id });
+
+    return c.json({ closed: removed.length });
   });
 
 export const userRoutes = new Hono<AppEnv>()
   .use("*", requireAdmin)
+  .use("*", requireActiveSubscription)
 
   .get("/", async (c) => {
+    const organizationId = currentOrgId();
+
     const totals = db
       .select({
         userId: timeEntries.userId,
@@ -76,6 +183,7 @@ export const userRoutes = new Hono<AppEnv>()
         overtime: sql<number>`coalesce(sum(${timeEntries.overtimeHours}), 0)`.as("overtime"),
       })
       .from(timeEntries)
+      .where(eq(timeEntries.organizationId, organizationId))
       .groupBy(timeEntries.userId)
       .as("totals");
 
@@ -83,6 +191,7 @@ export const userRoutes = new Hono<AppEnv>()
       .select({ ...publicUser, regularHours: totals.regular, overtimeHours: totals.overtime })
       .from(users)
       .leftJoin(totals, eq(totals.userId, users.id))
+      .where(eq(users.organizationId, organizationId))
       .orderBy(users.name);
 
     return c.json({ users: rows });
@@ -90,10 +199,23 @@ export const userRoutes = new Hono<AppEnv>()
 
   .post("/", validate("json", createUserSchema), async (c) => {
     const payload = c.req.valid("json");
+    const organization = orgOf(c);
     const email = payload.email.toLowerCase();
 
-    const [existing] = await db.select().from(users).where(eq(users.email, email)).limit(1);
-    if (existing) throw conflict("Esiste già un utente con questa email");
+    if (await emailTaken(email)) throw conflict("Esiste già un utente con questa email");
+
+    // The seat limit is checked here rather than at sign-in, so nobody is ever
+    // locked out of an account they already had because the plan changed.
+    const used = await seatsUsed();
+    if (!seatsAvailable(organization.plan, used)) {
+      const next = smallestPlanFor(used + 1);
+      throw conflict(
+        next
+          ? `Il piano ${PLANS[organization.plan].name} arriva a ${PLANS[organization.plan].maxEmployees} persone. ` +
+              `Passa al piano ${next.name} per aggiungerne altre.`
+          : "Limite di utenti raggiunto per questo piano.",
+      );
+    }
 
     const id = randomUUID();
     // Without a password the account is created locked behind a setup link,
@@ -102,6 +224,7 @@ export const userRoutes = new Hono<AppEnv>()
 
     await db.insert(users).values({
       id,
+      organizationId: organization.id,
       name: payload.name,
       email,
       passwordHash,
@@ -114,10 +237,19 @@ export const userRoutes = new Hono<AppEnv>()
 
     let invited = false;
     if (!payload.password) {
-      invited = await sendWelcomeEmail(email, payload.name, await issueResetToken(id, WELCOME_TTL_MS));
+      invited = await sendWelcomeEmail(
+        email,
+        payload.name,
+        await issueResetToken(id, WELCOME_TTL_MS),
+        organization.name,
+      );
     }
 
-    const [created] = await db.select(publicUser).from(users).where(eq(users.id, id)).limit(1);
+    const [created] = await db
+      .select(publicUser)
+      .from(users)
+      .where(and(eq(users.organizationId, organization.id), eq(users.id, id)))
+      .limit(1);
     return c.json({ user: created, invited }, 201);
   })
 
@@ -132,8 +264,9 @@ export const userRoutes = new Hono<AppEnv>()
     }
 
     if (payload.email && payload.email.toLowerCase() !== target.email) {
-      const [clash] = await db.select().from(users).where(eq(users.email, payload.email.toLowerCase())).limit(1);
-      if (clash) throw conflict("Esiste già un utente con questa email");
+      if (await emailTaken(payload.email, target.id)) {
+        throw conflict("Esiste già un utente con questa email");
+      }
     }
 
     await db
@@ -147,18 +280,100 @@ export const userRoutes = new Hono<AppEnv>()
         hasPaternity: payload.hasPaternity ?? target.hasPaternity,
         updatedAt: new Date(),
       })
-      .where(eq(users.id, target.id));
+      .where(and(eq(users.organizationId, currentOrgId()), eq(users.id, target.id)));
 
-    const [updated] = await db.select(publicUser).from(users).where(eq(users.id, target.id)).limit(1);
+    const [updated] = await db
+      .select(publicUser)
+      .from(users)
+      .where(and(eq(users.organizationId, currentOrgId()), eq(users.id, target.id)))
+      .limit(1);
     return c.json({ user: updated });
   })
 
+  /**
+   * Deactivation is the ordinary way a person leaves.
+   *
+   * Their account stops working, their seat is freed, and they drop out of the
+   * reminder sweep — while every hour they ever recorded stays exactly where it
+   * is. Deleting them would take all of it with them, and a timesheet is a
+   * payroll record.
+   */
+  .post("/:id/deactivate", async (c) => {
+    const session = sessionOf(c);
+    const target = await mustExist(c.req.param("id"));
+    if (target.id === session.user.id) throw forbidden("Non puoi disattivare il tuo stesso account");
+    if (target.deactivatedAt) return c.json({ ok: true, alreadyDeactivated: true });
+
+    await db
+      .update(users)
+      .set({ deactivatedAt: new Date(), updatedAt: new Date() })
+      .where(and(eq(users.organizationId, currentOrgId()), eq(users.id, target.id)));
+    // Whatever they had open stops working now, not at the next sign-in.
+    await revokeAllSessions(target.id);
+
+    return c.json({ ok: true });
+  })
+
+  .post("/:id/reactivate", async (c) => {
+    const organization = orgOf(c);
+    const target = await mustExist(c.req.param("id"));
+    if (!target.deactivatedAt) return c.json({ ok: true, alreadyActive: true });
+
+    // Coming back takes a seat, so it has to pass the same check as arriving.
+    if (!seatsAvailable(organization.plan, await seatsUsed())) {
+      const next = smallestPlanFor((await seatsUsed()) + 1);
+      throw conflict(
+        next
+          ? `Il piano ${PLANS[organization.plan].name} è al completo. Passa al piano ${next.name} per riattivare.`
+          : "Limite di utenti raggiunto per questo piano.",
+      );
+    }
+
+    await db
+      .update(users)
+      .set({ deactivatedAt: null, updatedAt: new Date() })
+      .where(and(eq(users.organizationId, currentOrgId()), eq(users.id, target.id)));
+    return c.json({ ok: true });
+  })
+
+  /** What deleting this person would destroy, so the confirmation can say so. */
+  .get("/:id/deletion-preview", async (c) => {
+    const target = await mustExist(c.req.param("id"));
+    const organizationId = currentOrgId();
+
+    const [entries] = await db
+      .select({ total: count() })
+      .from(timeEntries)
+      .where(and(eq(timeEntries.organizationId, organizationId), eq(timeEntries.userId, target.id)));
+    const [requests] = await db
+      .select({ total: count() })
+      .from(leaveRequests)
+      .where(and(eq(leaveRequests.organizationId, organizationId), eq(leaveRequests.userId, target.id)));
+
+    return c.json({
+      deactivated: Boolean(target.deactivatedAt),
+      timeEntries: Number(entries?.total ?? 0),
+      leaveRequests: Number(requests?.total ?? 0),
+    });
+  })
+
+  /**
+   * The destructive path, kept deliberately narrow: only on somebody already
+   * deactivated. It is for the account created by mistake and for a request to
+   * be forgotten — not for the ordinary business of someone leaving, which is
+   * what the two routes above are.
+   */
   .delete("/:id", async (c) => {
     const session = sessionOf(c);
     const target = await mustExist(c.req.param("id"));
     if (target.id === session.user.id) throw forbidden("Non puoi eliminare il tuo stesso account");
+    if (!target.deactivatedAt) {
+      throw conflict("Disattiva l'utente prima di eliminarlo definitivamente");
+    }
 
-    await db.delete(users).where(eq(users.id, target.id));
+    await db
+      .delete(users)
+      .where(and(eq(users.organizationId, currentOrgId()), eq(users.id, target.id)));
     return c.json({ ok: true });
   })
 
@@ -170,12 +385,16 @@ export const userRoutes = new Hono<AppEnv>()
       await db
         .update(users)
         .set({ passwordHash: await hashPassword(newPassword), updatedAt: new Date() })
-        .where(eq(users.id, target.id));
+        .where(and(eq(users.organizationId, currentOrgId()), eq(users.id, target.id)));
       await revokeAllSessions(target.id);
       return c.json({ ok: true, emailed: false });
     }
 
-    const emailed = await sendPasswordResetEmail(target.email, await issueResetToken(target.id, WELCOME_TTL_MS));
+    const emailed = await sendPasswordResetEmail(
+      target.email,
+      await issueResetToken(target.id, WELCOME_TTL_MS),
+      orgOf(c).name,
+    );
     return c.json({ ok: true, emailed });
   })
 
@@ -202,7 +421,7 @@ export const userRoutes = new Hono<AppEnv>()
       await db
         .update(users)
         .set({ canWorkSunday: payload.canWorkSunday, updatedAt: new Date() })
-        .where(eq(users.id, target.id));
+        .where(and(eq(users.organizationId, currentOrgId()), eq(users.id, target.id)));
     }
 
     return c.json({ days: await scheduleRowsOf(target.id) });
@@ -210,6 +429,7 @@ export const userRoutes = new Hono<AppEnv>()
 
   .post("/:id/remind", async (c) => {
     const target = await mustExist(c.req.param("id"));
+    if (target.deactivatedAt) throw conflict("L'utente è disattivato");
     const week = await weekScheduleOf(target.id);
     const missing = await missingDaysFor(target.id, week);
 

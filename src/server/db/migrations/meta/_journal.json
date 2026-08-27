@@ -1,12 +1,54 @@
 {
   "version": "7",
-  "dialect": "sqlite",
+  "dialect": "postgresql",
   "entries": [
     {
       "idx": 0,
-      "version": "6",
-      "when": 1787507498320,
-      "tag": "0000_low_wallop",
+      "version": "7",
+      "when": 1787758935780,
+      "tag": "0000_init",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1787758953207,
+      "tag": "0001_tenant_isolation",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1787760137290,
+      "tag": "0002_impersonation",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1787766567430,
+      "tag": "0003_deactivation",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1787775743851,
+      "tag": "0004_platform_admins",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1787776390278,
+      "tag": "0005_billing_profiles",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1787776599025,
+      "tag": "0006_drop_invitations",
       "breakpoints": true
     }
   ]

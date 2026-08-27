@@ -1,11 +1,11 @@
 import { serve } from "@hono/node-server";
 import { serveStatic } from "@hono/node-server/serve-static";
-import { migrate } from "drizzle-orm/better-sqlite3/migrator";
 import { existsSync, readFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { app } from "./app";
-import { db } from "./db/client";
+import { migrateDatabase } from "./db/migrate";
+import { ensurePlatformAdmin } from "./services/platform-admin";
 import { env } from "./env";
 import { startScheduledJobs } from "./services/jobs";
 
@@ -16,7 +16,8 @@ const migrationsFolder = existsSync(join(here, "migrations"))
   ? join(here, "migrations")
   : resolve("src/server/db/migrations");
 
-migrate(db, { migrationsFolder });
+await migrateDatabase(migrationsFolder);
+await ensurePlatformAdmin();
 
 // The SPA is a static bundle; anything that is not a file on disk and not an
 // API call is a client-side route and gets the shell.

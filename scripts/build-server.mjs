@@ -1,6 +1,6 @@
-// Bundles the API server into a single ESM file. Only genuinely native or
-// dynamic-require packages stay external, so the runtime image needs a
-// fraction of node_modules.
+// Bundles the API server into a single ESM file. Only the three runtime
+// dependencies stay external, so the runtime image needs a fraction of
+// node_modules.
 import { build } from "esbuild";
 import { cpSync, mkdirSync } from "node:fs";
 import { fileURLToPath } from "node:url";
@@ -16,7 +16,7 @@ await build({
   format: "esm",
   sourcemap: false,
   minify: false,
-  external: ["better-sqlite3", "exceljs", "nodemailer"],
+  external: ["postgres", "exceljs", "nodemailer"],
   banner: {
     // esbuild's ESM output can still emit require() shims for CJS deps.
     js: "import{createRequire as __cr}from'node:module';const require=__cr(import.meta.url);",
