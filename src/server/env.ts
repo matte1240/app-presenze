@@ -63,6 +63,33 @@ const schema = z.object({
 
   REMINDER_CRON: z.string().default("0 19 * * *"),
   ENABLE_CRON: z.stringbool().default(true),
+
+  /**
+   * Object storage for whole-database backups. Written against the plain S3
+   * API — Hetzner Object Storage speaks that and nothing else — so the same
+   * code reaches it, MinIO in development, or AWS S3 itself unchanged.
+   * Absent in development: the back-office backup screen then says so instead
+   * of the application refusing to start.
+   */
+  S3_ENDPOINT: z.string().optional(),
+  S3_REGION: z.string().default("auto"),
+  S3_BUCKET: z.string().optional(),
+  S3_ACCESS_KEY_ID: z.string().optional(),
+  S3_SECRET_ACCESS_KEY: z.string().optional(),
+  /**
+   * Path-style (`endpoint/bucket/key`) rather than virtual-hosted
+   * (`bucket.endpoint/key`) addressing. The safe default for anything that
+   * isn't AWS itself: Hetzner's endpoint has no wildcard certificate for
+   * `<bucket>.<endpoint>`, so virtual-hosted requests fail TLS verification.
+   */
+  S3_FORCE_PATH_STYLE: z.stringbool().default(true),
+  /** Key prefix inside the bucket, so it can be shared with other tenants of the bucket itself. */
+  BACKUP_PREFIX: z.string().default("backups/"),
+  BACKUP_CRON: z.string().default("0 3 * * *"),
+  /** Backups older than this are pruned — but never below BACKUP_MIN_COUNT. */
+  BACKUP_RETENTION_DAYS: z.coerce.number().int().min(1).default(30),
+  BACKUP_MIN_COUNT: z.coerce.number().int().min(1).default(7),
+  BACKUP_EMAIL_TO: z.string().optional(),
 });
 
 const parsed = schema.safeParse(process.env);
@@ -90,3 +117,10 @@ export const stripePrices = {
   PRO: env.STRIPE_PRICE_PRO,
   BUSINESS: env.STRIPE_PRICE_BUSINESS,
 } as const;
+
+export const s3Enabled = Boolean(
+  env.S3_ENDPOINT && env.S3_BUCKET && env.S3_ACCESS_KEY_ID && env.S3_SECRET_ACCESS_KEY,
+);
+
+/** Always ending in `/`, so a key is a plain concatenation and never a double slash. */
+export const backupPrefix = env.BACKUP_PREFIX === "" ? "" : env.BACKUP_PREFIX.replace(/\/*$/, "/");

@@ -51,6 +51,7 @@ import { sendWelcomeEmail } from "../services/email";
 import { createOrganization } from "../services/organizations";
 import { exportData } from "../services/export";
 import { issueResetToken } from "./auth";
+import { platformBackupRoutes } from "./platform-backups";
 
 const INVITE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 
@@ -157,6 +158,11 @@ export const platformRoutes = new Hono<AppEnv>()
   })
 
   .use("*", requirePlatformAdmin)
+
+  // Whole-database backups: every route here reaches every customer's data at
+  // once, which is exactly why it lives behind this guard and nowhere near a
+  // tenant's own "maintenance" screen.
+  .route("/backups", platformBackupRoutes)
 
   .get("/me", async (c) => {
     // Not `adminOf`: this route is reachable while locked, and the guard does

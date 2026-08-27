@@ -16,6 +16,7 @@
     "start": "node dist/server/index.js",
     "test": "vitest run",
     "test:db": "vitest run src/server/tenant-isolation.test.ts src/server/billing.test.ts src/server/platform.test.ts src/server/trials.test.ts src/server/deactivation.test.ts src/server/organization.test.ts",
+    "test:backup": "vitest run src/server/backup.test.ts",
     "test:e2e": "playwright test",
     "test:isolation": "vitest run src/server/tenant-isolation.test.ts",
     "test:watch": "vitest",
@@ -26,6 +27,9 @@
     "db:seed": "tsx --env-file-if-exists=.env src/server/db/seed.ts"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.1119.0",
+    "@aws-sdk/lib-storage": "^3.1119.0",
+    "@aws-sdk/s3-request-presigner": "^3.1119.0",
     "@hono/node-server": "^2.1.1",
     "@hono/zod-validator": "^0.9.0",
     "drizzle-orm": "^0.45.2",
@@ -72,6 +76,7 @@
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
     "react-hook-form": "^7.86.0",
+    "s3rver": "^3.7.1",
     "tailwind-merge": "^3.4.0",
     "tailwindcss": "^4.3.3",
     "tsx": "^4.20.6",

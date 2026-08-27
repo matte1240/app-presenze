@@ -237,3 +237,73 @@ export function exportOrganization(organization: PlatformOrganization) {
   anchor.click();
   anchor.remove();
 }
+
+export interface StoredBackup {
+  filename: string;
+  sizeBytes: number;
+  lastModified: string;
+}
+
+export interface BackupStatus {
+  enabled: boolean;
+  bucket: string | null;
+  prefix: string;
+  cronExpression: string;
+  retentionDays: number;
+  minCount: number;
+  backups: StoredBackup[];
+}
+
+export const platformBackupsQuery = queryOptions({
+  queryKey: ["platform", "backups"],
+  queryFn: () => platform<BackupStatus>("/backups"),
+});
+
+export function useCreateBackup() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: () => platform<{ backup: StoredBackup }>("/backups", { method: "POST" }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["platform", "backups"] }),
+  });
+}
+
+export function usePruneBackups() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: () => platform<{ removed: string[] }>("/backups/prune", { method: "POST" }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["platform", "backups"] }),
+  });
+}
+
+export function useDeleteBackup() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (filename: string) => platform<{ ok: true }>(`/backups/${filename}`, { method: "DELETE" }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["platform", "backups"] }),
+  });
+}
+
+export function useRestoreBackup() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (filename: string) =>
+      platform<{ ok: true; safetyBackup: string }>(`/backups/${filename}/restore`, {
+        method: "POST",
+        body: JSON.stringify({ confirm: filename }),
+      }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["platform", "backups"] }),
+  });
+}
+
+/**
+ * A plain navigation, not `platform()`: the server answers with a 302 straight
+ * to the bucket, and following that redirect here would mean downloading a
+ * multi-gigabyte dump into this tab's memory just to hand it back out again.
+ */
+export function downloadBackup(filename: string) {
+  const anchor = document.createElement("a");
+  anchor.href = `/api/platform/backups/${filename}/download`;
+  document.body.append(anchor);
+  anchor.click();
+  anchor.remove();
+}

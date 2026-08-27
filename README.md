@@ -72,6 +72,20 @@ npm run test:db
 Senza quelle variabili i test si saltano invece di fallire, così `npm test`
 funziona anche su una macchina senza database.
 
+Il backup e il ripristino hanno una suite a parte, `npm run test:backup`, e
+**vogliono un database tutto loro** — mai lo stesso di `test:db` o di
+qualunque altra cosa in esecuzione insieme. Fa un `pg_restore --clean` vero, che
+sostituisce ogni tabella: condividere il database con un test in corso altrove
+significherebbe che l'ultimo a finire decide cosa resta. Serve anche
+`pg_dump`/`pg_restore` sul PATH; senza, la suite si salta con un avviso invece
+di fallire.
+
+```bash
+TEST_DATABASE_URL=postgres://presenze_app:...@localhost:5432/presenze_backup \
+TEST_DATABASE_ADMIN_URL=postgres://presenze:...@localhost:5432/presenze_backup \
+npm run test:backup
+```
+
 ## Utenti che se ne vanno
 
 Il pulsante non è «Elimina» ma «Disattiva»: l'account smette di funzionare, il
@@ -106,8 +120,9 @@ sola volta per cliente.
 Su `/piattaforma` c'è una superficie separata per gestire le organizzazioni
 clienti: elenco con piano, stato e persone, creazione assistita di una nuova
 azienda (l'amministratore riceve un invito, nessuna password viene impostata),
-cambio di piano, sospensione, esportazione dei dati e accesso di supporto
-dentro l'account.
+cambio di piano, sospensione, esportazione dei dati, accesso di supporto dentro
+l'account, e il backup dell'intero database — vedi [Backup](#backup) più
+sotto.
 
 Non è un ruolo in più dentro l'applicazione: ha una tabella propria, un cookie
 proprio e un login proprio. Se «può amministrare la piattaforma» fosse un valore
@@ -202,6 +217,8 @@ significa quindi toccare `ui/tokens.css` e `ui/primitives/`, non la logica.
 | `npm run dev` | API e interfaccia in sviluppo |
 | `npm test` | test del dominio |
 | `npm run test:db` | test di isolamento e fatturazione (serve un PostgreSQL) |
+| `npm run test:backup` | test di backup e ripristino (un PostgreSQL **dedicato**, e `pg_dump`/`pg_restore` sul PATH) |
+| `npm run test:e2e` | percorsi in un browser vero (serve un PostgreSQL dedicato) |
 | `npm run typecheck` | TypeScript su tutto il progetto |
 | `npm run lint` | ESLint, incluse le regole di confine fra i layer |
 | `npm run build` | bundle di interfaccia e server in `dist/` |
@@ -221,22 +238,41 @@ invece che spediti.
 
 ## Backup
 
-Il backup del database è un lavoro da operatore, non un pulsante
-nell'applicazione: `pg_dump` da un cron dell'host, con la ritenzione che
-preferisci.
+Due livelli, per due scopi diversi.
 
-```bash
-docker compose exec -T db pg_dump -U presenze presenze | gzip > presenze-$(date +%F).sql.gz
-```
+**Dalla schermata Manutenzione** di ogni organizzazione, un amministratore
+scarica i propri dati in JSON — utenti, orari, cartellini e richieste, senza gli
+hash delle password. È l'esportazione che gli serve per portarli altrove, non
+una copia del database di tutti.
 
-Dalla schermata **Manutenzione** un amministratore può invece scaricare i propri
-dati in JSON — utenti, orari, cartellini e richieste, senza gli hash delle
-password. È l'esportazione che gli serve per portarli altrove, non una copia del
-database di tutti.
+**Dal back-office** (`/piattaforma` → *Backup*), un amministratore di
+piattaforma gestisce il backup dell'**intero** database — ogni organizzazione
+insieme — su uno storage S3-compatibile. Hetzner Object Storage è il target
+pensato di base, ma qualunque endpoint S3 (MinIO, AWS S3 stesso) funziona
+allo stesso modo: vedi le variabili `S3_*` e `BACKUP_*` in
+[`.env.example`](.env.example).
 
-La versione precedente esponeva un endpoint di ripristino che sostituiva l'intero
-database: non esiste più, ed è bene che sia così ora che in quel database vivono
-i dati di più aziende.
+Da lì si può:
+
+- creare un backup a richiesta, oltre a quello notturno pianificato
+  (`BACKUP_CRON`);
+- scaricarlo — un link firmato porta dritti al bucket, il file non passa mai dal
+  server applicativo;
+- **ripristinarlo**, sostituendo il database in blocco con quello del backup
+  scelto. È l'unica operazione davvero distruttiva di tutta l'applicazione:
+  richiede di scrivere per esteso il nome del file da ripristinare, prende
+  automaticamente una copia di sicurezza dello stato attuale prima di
+  procedere, ed è pensata per una finestra di manutenzione — l'applicazione
+  resta comunque raggiungibile durante il ripristino, ma qualche richiesta in
+  quel momento può fallire, com'è inevitabile quando le tabelle vengono
+  sostituite una per una sotto un processo che le sta ancora usando;
+- eliminare un backup, o applicare subito la politica di conservazione invece
+  di aspettare il prossimo giro notturno.
+
+Tecnicamente sono `pg_dump`/`pg_restore` veri, non una reimplementazione: il
+container li include già, alla stessa versione maggiore del servizio
+PostgreSQL in `docker-compose.yml`, perché `pg_dump` non è pensato per leggere
+da un server più recente di se stesso.
 
 ## Note operative
 

@@ -25,11 +25,25 @@ WORKDIR /app
 ENV NODE_ENV=production \
     PORT=3000
 
+# The one thing that isn't pure JavaScript: whole-database backups shell out to
+# the real `pg_dump`/`pg_restore` rather than reimplementing either. Installed
+# at major version 17 to match `postgres:17-alpine` in docker-compose.yml —
+# pg_dump does not officially support dumping from a server newer than itself,
+# so this has to track whatever version the database service runs, not
+# Debian's own default.
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends curl ca-certificates gnupg postgresql-common \
+    && /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y \
+    && apt-get install -y --no-install-recommends postgresql-client-17 \
+    && apt-get purge -y --auto-remove curl gnupg \
+    && rm -rf /var/lib/apt/lists/*
+
 COPY --from=deps  /app/node_modules ./node_modules
 COPY --from=build /app/dist         ./dist
 COPY package.json ./
 
-# All state lives in Postgres now; the container itself is disposable.
+# All state lives in Postgres and, for backups, in object storage; the
+# container itself is disposable.
 USER node
 
 EXPOSE 3000

@@ -91,6 +91,14 @@ export function sendPasswordResetEmail(to: string, token: string, organizationNa
   });
 }
 
+export function sendBackupNotice(to: string, filename: string, sizeBytes: number) {
+  return send(to, `Backup completato — ${filename}`, {
+    title: "Backup del database completato",
+    intro: `Il backup <strong>${escape(filename)}</strong> è stato creato e caricato sullo storage (${(sizeBytes / 1024 / 1024).toFixed(1)} MB).`,
+    footnote: "Nessuna azione richiesta. Scaricalo o gestiscilo dal back-office se serve.",
+  });
+}
+
 export function sendWelcomeEmail(to: string, name: string, token: string, organizationName: string) {
   return send(to, `Il tuo accesso a ${organizationName}`, {
     title: `Benvenuto, ${escape(name)}`,

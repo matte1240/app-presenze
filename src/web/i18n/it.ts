@@ -121,6 +121,32 @@ export const t = {
 
     impersonationBanner:
       "Stai operando dentro questa organizzazione dal back-office. Ogni azione è registrata.",
+
+    backups: "Backup",
+    backupsHint: "Copie dell'intero database, su storage S3, indipendenti dall'esportazione di una singola azienda.",
+    backupsNotConfigured:
+      "Lo storage S3 non è configurato su questa installazione: nessun backup può essere creato o ripristinato da qui.",
+    backupsSchedule: (cron: string, retentionDays: number, minCount: number) =>
+      `Pianificazione automatica: ${cron}. Conservati almeno ${minCount} backup, e comunque quelli più recenti di ${retentionDays} giorni.`,
+    newBackup: "Crea backup ora",
+    backupCreated: "Backup creato.",
+    pruneNow: "Applica la conservazione",
+    pruned: (n: number) => (n === 0 ? "Nessun backup da rimuovere." : `${n} backup rimossi.`),
+    filename: "File",
+    size: "Dimensione",
+    created: "Creato",
+    download: "Scarica",
+    restore: "Ripristina",
+    deleteBackup: "Elimina",
+    backupDeleted: "Backup eliminato.",
+    deleteBackupConfirm: (filename: string) => `Eliminare definitivamente ${filename}?`,
+    noBackups: "Nessun backup ancora creato.",
+    restoreTitle: (filename: string) => `Ripristinare ${filename}?`,
+    restoreWarning:
+      "Sostituisce tutti i dati di tutte le organizzazioni con quelli di questo backup. Prima viene creata automaticamente una copia di sicurezza dello stato attuale, ma l'operazione resta distruttiva e non è annullabile dall'interfaccia.",
+    restoreTypeToConfirm: "Digita il nome del file per confermare",
+    restoreDone: (safetyBackup: string) =>
+      `Ripristino completato. La copia di sicurezza dello stato precedente è ${safetyBackup}.`,
   },
 
   billing: {

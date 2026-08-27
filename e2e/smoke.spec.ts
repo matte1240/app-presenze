@@ -142,5 +142,10 @@ test.describe("il back-office", () => {
 
     await page.getByRole("link", { name: "Amministratori" }).click();
     await expect(page.getByText("Chi può entrare in questo back-office.")).toBeVisible();
+
+    // No S3 configured in this environment, so the page must say so rather
+    // than offering buttons that would fail.
+    await page.getByRole("link", { name: "Backup" }).click();
+    await expect(page.getByText("Lo storage S3 non è configurato")).toBeVisible();
   });
 });

@@ -64,9 +64,19 @@ jobs:
               GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO presenze_app;
           SQL
           # A second database for the browser smoke suite, so it never races the
-          # API tests over the same rows.
+          # API tests over the same rows. A third, isolated from both, for the
+          # backup suite: it runs a real `pg_restore --clean`, which drops and
+          # recreates every table in whatever database it points at — sharing
+          # one with tests running alongside it would mean the last to finish
+          # decides what's left.
           createdb -h localhost -U presenze_owner presenze_e2e
           psql "$E2E_URL" -v ON_ERROR_STOP=1 <<'SQL'
+            GRANT USAGE ON SCHEMA public TO presenze_app;
+            ALTER DEFAULT PRIVILEGES FOR ROLE presenze_owner IN SCHEMA public
+              GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO presenze_app;
+          SQL
+          createdb -h localhost -U presenze_owner presenze_backup
+          psql "$BACKUP_URL" -v ON_ERROR_STOP=1 <<'SQL'
             GRANT USAGE ON SCHEMA public TO presenze_app;
             ALTER DEFAULT PRIVILEGES FOR ROLE presenze_owner IN SCHEMA public
               GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO presenze_app;
@@ -75,12 +85,31 @@ jobs:
           PGPASSWORD: owner
           ADMIN_URL: postgres://presenze_owner:owner@localhost:5432/presenze_test
           E2E_URL: postgres://presenze_owner:owner@localhost:5432/presenze_e2e
+          BACKUP_URL: postgres://presenze_owner:owner@localhost:5432/presenze_backup
 
       - name: Test — isolation, billing and back-office
         run: npm run test:db
         env:
           TEST_DATABASE_URL: postgres://presenze_app:app@localhost:5432/presenze_test
           TEST_DATABASE_ADMIN_URL: postgres://presenze_owner:owner@localhost:5432/presenze_test
+
+      # pg_dump/pg_restore are not part of the runner image; installed at the
+      # same major version as the `postgres:17-alpine` service above, since
+      # pg_dump does not officially support dumping from a newer server than
+      # itself.
+      - name: Install PostgreSQL 17 client tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends postgresql-common
+          sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y
+          sudo apt-get install -y --no-install-recommends postgresql-client-17
+          pg_dump --version
+
+      - name: Test — backup and restore
+        run: npm run test:backup
+        env:
+          TEST_DATABASE_URL: postgres://presenze_app:app@localhost:5432/presenze_backup
+          TEST_DATABASE_ADMIN_URL: postgres://presenze_owner:owner@localhost:5432/presenze_backup
 
       - name: Build
         run: npm run build

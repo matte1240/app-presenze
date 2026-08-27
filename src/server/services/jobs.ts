@@ -9,7 +9,7 @@
  */
 import cron from "node-cron";
 import { sql } from "../db/client";
-import { env } from "../env";
+import { env, s3Enabled } from "../env";
 
 let started = false;
 
@@ -32,6 +32,7 @@ export async function withJobLock(key: number, run: () => Promise<void>): Promis
 
 const REMINDER_LOCK = 4_201_001;
 const TRIAL_SWEEP_LOCK = 4_201_003;
+const BACKUP_LOCK = 4_201_006;
 
 export function startScheduledJobs(): void {
   if (started) return;
@@ -64,7 +65,24 @@ export function startScheduledJobs(): void {
     options,
   );
 
+  // Only scheduled when there is somewhere for a backup to go: a job that ran
+  // and failed the same way every night would be noise, not a safety net.
+  if (s3Enabled) {
+    cron.schedule(
+      env.BACKUP_CRON,
+      () => {
+        void withJobLock(BACKUP_LOCK, async () => {
+          const m = await import("./backup");
+          await m.runScheduledBackup();
+        }).catch((e) => console.error("Backup pianificato fallito:", e));
+      },
+      options,
+    );
+  }
+
   console.info(
-    `Job pianificati: promemoria "${env.REMINDER_CRON}", scadenza trial "15 1 * * *" (${env.TZ})`,
+    `Job pianificati: promemoria "${env.REMINDER_CRON}", scadenza trial "15 1 * * *"` +
+      (s3Enabled ? `, backup "${env.BACKUP_CRON}"` : "") +
+      ` (${env.TZ})`,
   );
 }

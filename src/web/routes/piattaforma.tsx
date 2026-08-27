@@ -51,6 +51,9 @@ function BackOfficeLayout() {
           <NavLink to="/piattaforma/amministratori" active={pathname.endsWith("/amministratori")}>
             {t.platform.admins}
           </NavLink>
+          <NavLink to="/piattaforma/backup" active={pathname.endsWith("/backup")}>
+            {t.platform.backups}
+          </NavLink>
         </nav>
 
         <span className="hidden text-label text-muted-foreground sm:inline">{data.admin.email}</span>
