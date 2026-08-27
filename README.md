@@ -121,8 +121,8 @@ Su `/piattaforma` c'è una superficie separata per gestire le organizzazioni
 clienti: elenco con piano, stato e persone, creazione assistita di una nuova
 azienda (l'amministratore riceve un invito, nessuna password viene impostata),
 cambio di piano, sospensione, esportazione dei dati, accesso di supporto dentro
-l'account, e il backup dell'intero database — vedi [Backup](#backup) più
-sotto.
+l'account, backup e ripristino per la singola organizzazione, e il backup
+dell'intero database — vedi [Backup](#backup) più sotto.
 
 Non è un ruolo in più dentro l'applicazione: ha una tabella propria, un cookie
 proprio e un login proprio. Se «può amministrare la piattaforma» fosse un valore
@@ -238,21 +238,31 @@ invece che spediti.
 
 ## Backup
 
-Due livelli, per due scopi diversi.
+Tre livelli, per tre scopi diversi. Tutti e tre condividono lo stesso storage
+S3-compatibile — Hetzner Object Storage è il target pensato di base, ma
+qualunque endpoint S3 (MinIO, AWS S3 stesso) funziona allo stesso modo — le
+variabili sono `S3_*` e `BACKUP_*` in [`.env.example`](.env.example).
 
 **Dalla schermata Manutenzione** di ogni organizzazione, un amministratore
 scarica i propri dati in JSON — utenti, orari, cartellini e richieste, senza gli
-hash delle password. È l'esportazione che gli serve per portarli altrove, non
-una copia del database di tutti.
+hash delle password. È l'esportazione che gli serve per portarli altrove: un
+file scaricato subito, non conservato da nessuna parte.
+
+**Dalla scheda di un'organizzazione nel back-office** (`/piattaforma` →
+un'azienda), un amministratore di piattaforma può fare lo stesso backup, ma
+tenerlo sullo storage invece di scaricarlo, ed eventualmente **ripristinarlo**:
+sostituisce utenti, orari, cartellino e richieste di quella sola
+organizzazione con quelli del backup scelto, senza toccare le altre aziende né
+il piano o l'abbonamento. Anche questo richiede di scrivere per esteso il nome
+del file, e prende una copia di sicurezza dello stato attuale prima di
+procedere. Il file non contiene le password — non le ha mai contenute, fin da
+quando era solo un'esportazione — quindi ogni utente ripristinato riceve
+un'email per impostarne una nuova; senza SMTP configurato l'operazione riesce
+comunque, ma nessuno riceve il link.
 
 **Dal back-office** (`/piattaforma` → *Backup*), un amministratore di
 piattaforma gestisce il backup dell'**intero** database — ogni organizzazione
-insieme — su uno storage S3-compatibile. Hetzner Object Storage è il target
-pensato di base, ma qualunque endpoint S3 (MinIO, AWS S3 stesso) funziona
-allo stesso modo: vedi le variabili `S3_*` e `BACKUP_*` in
-[`.env.example`](.env.example).
-
-Da lì si può:
+insieme. Da lì si può:
 
 - creare un backup a richiesta, oltre a quello notturno pianificato
   (`BACKUP_CRON`);
@@ -269,10 +279,14 @@ Da lì si può:
 - eliminare un backup, o applicare subito la politica di conservazione invece
   di aspettare il prossimo giro notturno.
 
-Tecnicamente sono `pg_dump`/`pg_restore` veri, non una reimplementazione: il
+Tecnicamente è `pg_dump`/`pg_restore` vero, non una reimplementazione: il
 container li include già, alla stessa versione maggiore del servizio
 PostgreSQL in `docker-compose.yml`, perché `pg_dump` non è pensato per leggere
-da un server più recente di se stesso.
+da un server più recente di se stesso. Il ripristino per singola
+organizzazione, invece, non tocca `pg_restore` — è una sostituzione mirata a
+livello di righe, dentro una transazione, che non ha bisogno di quel
+privilegio né di quella cautela: non sostituisce nessuna tabella, quindi non
+disturba le altre organizzazioni che la stanno usando nello stesso momento.
 
 ## Note operative
 

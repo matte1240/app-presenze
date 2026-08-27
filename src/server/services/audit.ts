@@ -21,7 +21,10 @@ export type AuditAction =
   | "platform_admin.deleted"
   | "backup.created"
   | "backup.restored"
-  | "backup.deleted";
+  | "backup.deleted"
+  | "organization.backup_created"
+  | "organization.restored"
+  | "organization.backup_deleted";
 
 export async function record(entry: {
   organizationId: string | null;

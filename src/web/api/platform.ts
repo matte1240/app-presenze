@@ -307,3 +307,55 @@ export function downloadBackup(filename: string) {
   anchor.click();
   anchor.remove();
 }
+
+export interface OrgBackupStatus {
+  enabled: boolean;
+  backups: StoredBackup[];
+}
+
+export const organizationBackupsQuery = (organizationId: string) =>
+  queryOptions({
+    queryKey: ["platform", "organization", organizationId, "backups"],
+    queryFn: () => platform<OrgBackupStatus>(`/organizations/${organizationId}/backups`),
+  });
+
+export function useCreateOrgBackup(organizationId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: () =>
+      platform<{ backup: StoredBackup }>(`/organizations/${organizationId}/backups`, { method: "POST" }),
+    onSuccess: () =>
+      queryClient.invalidateQueries({ queryKey: ["platform", "organization", organizationId, "backups"] }),
+  });
+}
+
+export function useDeleteOrgBackup(organizationId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (filename: string) =>
+      platform<{ ok: true }>(`/organizations/${organizationId}/backups/${filename}`, { method: "DELETE" }),
+    onSuccess: () =>
+      queryClient.invalidateQueries({ queryKey: ["platform", "organization", organizationId, "backups"] }),
+  });
+}
+
+export function useRestoreOrgBackup(organizationId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (filename: string) =>
+      platform<{ ok: true; safetyBackup: string; usersRestored: number; emailed: number }>(
+        `/organizations/${organizationId}/backups/${filename}/restore`,
+        { method: "POST", body: JSON.stringify({ confirm: filename }) },
+      ),
+    onSuccess: () =>
+      queryClient.invalidateQueries({ queryKey: ["platform", "organization", organizationId, "backups"] }),
+  });
+}
+
+export function downloadOrgBackup(organizationId: string, filename: string) {
+  const anchor = document.createElement("a");
+  anchor.href = `/api/platform/organizations/${organizationId}/backups/${filename}/download`;
+  document.body.append(anchor);
+  anchor.click();
+  anchor.remove();
+}

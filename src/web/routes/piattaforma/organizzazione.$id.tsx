@@ -1,23 +1,34 @@
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link, redirect } from "@tanstack/react-router";
-import { ArrowLeft, Download, LogIn, Trash2 } from "lucide-react";
+import { ArrowLeft, DatabaseBackup, Download, LogIn, Plus, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { ApiError } from "../../api/client";
 import {
+  downloadOrgBackup,
+  organizationBackupsQuery,
   organizationDeletionPreview,
   organizationDetailQuery,
   platformMeQuery,
+  useCreateOrgBackup,
   useDeleteOrganization,
+  useDeleteOrgBackup,
   useImpersonate,
+  useRestoreOrgBackup,
+  type StoredBackup,
 } from "../../api/platform";
 import { t } from "../../i18n/it";
 import {
+  Alert,
   Badge,
   Button,
   buttonClasses,
   Card,
   CardHeader,
   ConfirmDialog,
+  Dialog,
+  EmptyState,
+  Field,
+  Input,
   SkeletonRows,
   Table,
   TableWrapper,
@@ -44,6 +55,19 @@ export const Route = createFileRoute("/piattaforma/organizzazione/$id")({
 
 const dateIt = (iso: string | null) =>
   iso ? new Date(iso).toLocaleDateString("it-IT", { day: "2-digit", month: "2-digit", year: "numeric" }) : "—";
+
+/** `it-IT` has no built-in byte formatter, and this is the one place on this page that shows a size. */
+function formatBytes(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  const units = ["KB", "MB", "GB", "TB"];
+  let value = bytes / 1024;
+  let unit = 0;
+  while (value >= 1024 && unit < units.length - 1) {
+    value /= 1024;
+    unit += 1;
+  }
+  return `${value.toFixed(value < 10 ? 1 : 0)} ${units[unit]}`;
+}
 
 function OrganizationDetailPage() {
   const { id } = Route.useParams();
@@ -169,6 +193,8 @@ function OrganizationDetailPage() {
         </TableWrapper>
       </Card>
 
+      <OrgBackupsCard organizationId={organization.id} />
+
       {audit.length > 0 ? (
         <Card>
           <CardHeader title={t.platform.audit} />
@@ -229,5 +255,196 @@ function Row({ label, children }: { label: string; children: React.ReactNode }) 
       <dt className="text-label text-muted-foreground">{label}</dt>
       <dd className="mt-1 text-body font-medium">{children}</dd>
     </div>
+  );
+}
+
+function OrgBackupsCard({ organizationId }: { organizationId: string }) {
+  const toast = useToast();
+  const { data, isLoading } = useQuery(organizationBackupsQuery(organizationId));
+  const create = useCreateOrgBackup(organizationId);
+  const remove = useDeleteOrgBackup(organizationId);
+  const [toDelete, setToDelete] = useState<StoredBackup | null>(null);
+  const [toRestore, setToRestore] = useState<StoredBackup | null>(null);
+
+  return (
+    <Card>
+      <CardHeader
+        title={t.platform.orgBackups}
+        description={t.platform.orgBackupsHint}
+        actions={
+          data?.enabled ? (
+            <Button
+              size="sm"
+              loading={create.isPending}
+              onClick={async () => {
+                try {
+                  await create.mutateAsync();
+                  toast.success(t.platform.orgBackupCreated);
+                } catch (error) {
+                  toast.error(error instanceof ApiError ? error.message : t.app.genericError);
+                }
+              }}
+            >
+              <Plus aria-hidden />
+              {t.platform.newOrgBackup}
+            </Button>
+          ) : undefined
+        }
+      />
+
+      {isLoading || !data ? (
+        <div className="p-5">
+          <SkeletonRows rows={2} />
+        </div>
+      ) : !data.enabled ? (
+        <div className="px-5 pb-5">
+          <Alert tone="warning">{t.platform.orgBackupsNotConfigured}</Alert>
+        </div>
+      ) : data.backups.length === 0 ? (
+        <EmptyState icon={DatabaseBackup} title={t.platform.noOrgBackups} />
+      ) : (
+        <TableWrapper className="rounded-none border-0">
+          <Table>
+            <THead>
+              <TR>
+                <TH>{t.platform.filename}</TH>
+                <TH>{t.platform.size}</TH>
+                <TH>{t.platform.created}</TH>
+                <TH className="text-right">{t.platform.actions}</TH>
+              </TR>
+            </THead>
+            <TBody>
+              {data.backups.map((backup) => (
+                <TR key={backup.filename}>
+                  <TD className="font-mono text-[12px]">{backup.filename}</TD>
+                  <TD>{formatBytes(backup.sizeBytes)}</TD>
+                  <TD className="whitespace-nowrap">{new Date(backup.lastModified).toLocaleString("it-IT")}</TD>
+                  <TD className="text-right">
+                    <div className="flex justify-end gap-1">
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        title={t.platform.download}
+                        aria-label={t.platform.download}
+                        onClick={() => downloadOrgBackup(organizationId, backup.filename)}
+                      >
+                        <Download aria-hidden />
+                      </Button>
+                      <Button size="sm" variant="outline" onClick={() => setToRestore(backup)}>
+                        {t.platform.restore}
+                      </Button>
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        className="text-destructive"
+                        title={t.platform.deleteBackup}
+                        aria-label={t.platform.deleteBackup}
+                        onClick={() => setToDelete(backup)}
+                      >
+                        <Trash2 aria-hidden />
+                      </Button>
+                    </div>
+                  </TD>
+                </TR>
+              ))}
+            </TBody>
+          </Table>
+        </TableWrapper>
+      )}
+
+      <ConfirmDialog
+        open={toDelete !== null}
+        onOpenChange={(open) => !open && setToDelete(null)}
+        title={t.platform.deleteBackup}
+        description={toDelete ? t.platform.deleteOrgBackupConfirm(toDelete.filename) : ""}
+        confirmLabel={t.platform.deleteBackup}
+        destructive
+        loading={remove.isPending}
+        onConfirm={async () => {
+          if (!toDelete) return;
+          try {
+            await remove.mutateAsync(toDelete.filename);
+            toast.success(t.platform.orgBackupDeleted);
+          } catch (error) {
+            toast.error(error instanceof ApiError ? error.message : t.app.genericError);
+          }
+          setToDelete(null);
+        }}
+      />
+
+      <RestoreOrgBackupDialog
+        organizationId={organizationId}
+        backup={toRestore}
+        onOpenChange={(open) => !open && setToRestore(null)}
+      />
+    </Card>
+  );
+}
+
+function RestoreOrgBackupDialog({
+  organizationId,
+  backup,
+  onOpenChange,
+}: {
+  organizationId: string;
+  backup: StoredBackup | null;
+  onOpenChange: (open: boolean) => void;
+}) {
+  const toast = useToast();
+  const restore = useRestoreOrgBackup(organizationId);
+  const [typed, setTyped] = useState("");
+
+  const matches = backup !== null && typed === backup.filename;
+
+  return (
+    <Dialog
+      open={backup !== null}
+      onOpenChange={(open) => {
+        if (!open) setTyped("");
+        onOpenChange(open);
+      }}
+      title={backup ? t.platform.restoreOrgTitle(backup.filename) : ""}
+      footer={
+        <>
+          <Button variant="ghost" onClick={() => onOpenChange(false)}>
+            {t.app.cancel}
+          </Button>
+          <Button
+            variant="destructive"
+            disabled={!matches}
+            loading={restore.isPending}
+            onClick={async () => {
+              if (!backup) return;
+              try {
+                const result = await restore.mutateAsync(backup.filename);
+                toast.success(t.platform.restoreOrgDone(result.usersRestored, result.emailed));
+                setTyped("");
+                onOpenChange(false);
+              } catch (error) {
+                toast.error(error instanceof ApiError ? error.message : t.app.genericError);
+              }
+            }}
+          >
+            {t.platform.restore}
+          </Button>
+        </>
+      }
+    >
+      <div className="space-y-4">
+        <Alert tone="danger">{t.platform.restoreOrgWarning}</Alert>
+        <Field label={t.platform.restoreTypeToConfirm} required>
+          {(props) => (
+            <Input
+              {...props}
+              autoFocus
+              autoComplete="off"
+              value={typed}
+              onChange={(event) => setTyped(event.target.value)}
+              placeholder={backup?.filename}
+            />
+          )}
+        </Field>
+      </div>
+    </Dialog>
   );
 }

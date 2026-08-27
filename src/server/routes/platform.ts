@@ -41,15 +41,23 @@ import {
 } from "../db/platform-schema";
 import { timeEntries, users } from "../db/schema";
 import { runInTenant } from "../db/tenant";
-import { isProduction } from "../env";
+import { isProduction, s3Enabled } from "../env";
 import type { AppEnv } from "../http/app-env";
-import { conflict, forbidden, notFound, unauthenticated } from "../http/errors";
+import { conflict, forbidden, invalid, notFound, unauthenticated } from "../http/errors";
 import { rateLimit } from "../http/rate-limit";
 import { validate } from "../http/validate";
 import { record, recentAudit } from "../services/audit";
-import { sendWelcomeEmail } from "../services/email";
+import { sendPasswordResetEmail, sendWelcomeEmail } from "../services/email";
 import { createOrganization } from "../services/organizations";
 import { exportData } from "../services/export";
+import {
+  createOrgBackup,
+  deleteOrgBackup,
+  listOrgBackups,
+  orgBackupInfo,
+  presignedOrgBackupDownloadUrl,
+  restoreOrgBackup,
+} from "../services/org-backup";
 import { issueResetToken } from "./auth";
 import { platformBackupRoutes } from "./platform-backups";
 
@@ -102,6 +110,18 @@ const createAdminSchema = z.object({
 const changeOwnPasswordSchema = z.object({
   currentPassword: z.string().min(1),
   newPassword: passwordSchema,
+});
+
+/** `backup-<timestamp>.json` or `pre-restore-<timestamp>.json` — never anything a client made up. */
+const ORG_BACKUP_FILENAME_PATTERN = /^(backup|pre-restore)-[0-9TZ-]+\.json$/;
+
+function assertKnownOrgBackupFilename(filename: string): void {
+  if (!ORG_BACKUP_FILENAME_PATTERN.test(filename)) throw invalid("Nome del backup non valido");
+}
+
+const restoreOrgBackupSchema = z.object({
+  /** Must equal the filename in the URL, same as the whole-database restore. */
+  confirm: z.string(),
 });
 
 const updateOrganizationSchema = z.object({
@@ -586,6 +606,116 @@ export const platformRoutes = new Hono<AppEnv>()
       "Content-Type": "application/json; charset=utf-8",
       "Content-Disposition": `attachment; filename="${organization.slug}.json"`,
     });
+  })
+
+  // ── Per-organization backups ────────────────────────────────────────────
+  // The same JSON `export` above, kept on S3 instead of a downloads folder,
+  // with the restore that a plain export never had — scoped to this one
+  // organization, never touching another customer's data.
+
+  .get("/organizations/:id/backups", async (c) => {
+    const organization = await mustExist(c.req.param("id"));
+    const backups = s3Enabled ? await listOrgBackups(organization.id) : [];
+    return c.json({ enabled: s3Enabled, backups });
+  })
+
+  .post("/organizations/:id/backups", async (c) => {
+    const admin = adminOf(c);
+    const organization = await mustExist(c.req.param("id"));
+
+    const backup = await runInTenant(organization, () => createOrgBackup());
+
+    await record({
+      organizationId: organization.id,
+      actorType: "PLATFORM_ADMIN",
+      actorId: admin.id,
+      actorLabel: admin.email,
+      action: "organization.backup_created",
+      detail: { filename: backup.filename, sizeBytes: backup.sizeBytes },
+    });
+
+    return c.json({ backup }, 201);
+  })
+
+  .get("/organizations/:id/backups/:filename/download", async (c) => {
+    const organization = await mustExist(c.req.param("id"));
+    const filename = c.req.param("filename");
+    assertKnownOrgBackupFilename(filename);
+    if (!(await orgBackupInfo(organization.id, filename))) throw notFound("Backup inesistente");
+
+    const url = await presignedOrgBackupDownloadUrl(organization.id, filename);
+    return c.redirect(url, 302);
+  })
+
+  .post(
+    "/organizations/:id/backups/:filename/restore",
+    validate("json", restoreOrgBackupSchema),
+    async (c) => {
+      const admin = adminOf(c);
+      const organization = await mustExist(c.req.param("id"));
+      const filename = c.req.param("filename");
+      assertKnownOrgBackupFilename(filename);
+
+      const { confirm } = c.req.valid("json");
+      if (confirm !== filename) {
+        throw invalid("Il nome digitato non corrisponde al backup da ripristinare");
+      }
+      if (!(await orgBackupInfo(organization.id, filename))) throw notFound("Backup inesistente");
+
+      const result = await runInTenant(organization, () => restoreOrgBackup(filename));
+
+      // The export never carries password hashes, so a reset link is the only
+      // way any of these accounts works again.
+      let emailed = 0;
+      for (const restored of result.users) {
+        const sent = await runInTenant(organization, async () =>
+          sendPasswordResetEmail(restored.email, await issueResetToken(restored.id, INVITE_TTL_MS), organization.name),
+        );
+        if (sent) emailed += 1;
+      }
+
+      await record({
+        organizationId: organization.id,
+        actorType: "PLATFORM_ADMIN",
+        actorId: admin.id,
+        actorLabel: admin.email,
+        action: "organization.restored",
+        detail: {
+          filename,
+          safetyBackup: result.safetyBackup,
+          usersRestored: result.users.length,
+          emailed,
+        },
+      });
+
+      return c.json({
+        ok: true,
+        safetyBackup: result.safetyBackup,
+        usersRestored: result.users.length,
+        emailed,
+      });
+    },
+  )
+
+  .delete("/organizations/:id/backups/:filename", async (c) => {
+    const admin = adminOf(c);
+    const organization = await mustExist(c.req.param("id"));
+    const filename = c.req.param("filename");
+    assertKnownOrgBackupFilename(filename);
+    if (!(await orgBackupInfo(organization.id, filename))) throw notFound("Backup inesistente");
+
+    await deleteOrgBackup(organization.id, filename);
+
+    await record({
+      organizationId: organization.id,
+      actorType: "PLATFORM_ADMIN",
+      actorId: admin.id,
+      actorLabel: admin.email,
+      action: "organization.backup_deleted",
+      detail: { filename },
+    });
+
+    return c.json({ ok: true });
   })
 
   .get("/audit", async (c) => {

@@ -139,6 +139,10 @@ test.describe("il back-office", () => {
     await page.getByRole("row").filter({ hasText: company }).getByRole("link").click();
     await expect(page.getByRole("heading", { name: company })).toBeVisible();
     await expect(page.getByRole("heading", { name: "Utenti dell'organizzazione" })).toBeVisible();
+    // The per-organization backup card renders on this same page, and must
+    // say S3 isn't configured rather than offering a "Crea backup" that would
+    // fail the moment it's pressed.
+    await expect(page.getByText("Lo storage S3 non è configurato su questa installazione.")).toBeVisible();
 
     await page.getByRole("link", { name: "Amministratori" }).click();
     await expect(page.getByText("Chi può entrare in questo back-office.")).toBeVisible();

@@ -147,6 +147,21 @@ export const t = {
     restoreTypeToConfirm: "Digita il nome del file per confermare",
     restoreDone: (safetyBackup: string) =>
       `Ripristino completato. La copia di sicurezza dello stato precedente è ${safetyBackup}.`,
+
+    orgBackups: "Backup di questa organizzazione",
+    orgBackupsHint:
+      "Utenti, orari, cartellino e richieste di questa sola azienda — lo stesso contenuto che scarica da Manutenzione, conservato qui.",
+    orgBackupsNotConfigured: "Lo storage S3 non è configurato su questa installazione.",
+    newOrgBackup: "Crea backup",
+    orgBackupCreated: "Backup creato.",
+    orgBackupDeleted: "Backup eliminato.",
+    deleteOrgBackupConfirm: (filename: string) => `Eliminare definitivamente ${filename}?`,
+    noOrgBackups: "Nessun backup ancora creato per questa organizzazione.",
+    restoreOrgTitle: (filename: string) => `Ripristinare ${filename}?`,
+    restoreOrgWarning:
+      "Sostituisce utenti, orari, cartellino e richieste di questa organizzazione con quelli di questo backup — non tocca le altre aziende, né il piano o l'abbonamento. Prima viene creata automaticamente una copia di sicurezza dello stato attuale. Il backup non contiene le password: ogni utente ripristinato riceve un'email per impostarne una nuova.",
+    restoreOrgDone: (usersRestored: number, emailed: number) =>
+      `Ripristino completato: ${usersRestored} ${usersRestored === 1 ? "utente" : "utenti"} ripristinat${usersRestored === 1 ? "o" : "i"}, ${emailed} ${emailed === 1 ? "email inviata" : "email inviate"} per la nuova password.`,
   },
 
   billing: {
